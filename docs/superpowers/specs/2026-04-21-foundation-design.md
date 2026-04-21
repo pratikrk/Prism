@@ -55,7 +55,7 @@ A previous attempt at Prism exists at `~/Ideas/Prism-old/`. Per user decision on
 - **F6** A `finalize` task rolls up child results into the sprint job's terminal status (`complete` or `complete_with_errors`).
 - **F7** The web UI shows a live job-status board with 5 lanes (orchestrator + 4 research) transitioning through states, updated via SSE.
 - **F8** Failed retryable jobs surface a Retry button; the child task can be re-enqueued individually.
-- **F9** Light/dark/system theme toggle persists per user and follows OS preference when set to system.
+- **F9** Light/dark/system theme toggle persists in `localStorage` (per-browser) via `next-themes` and follows OS preference when set to system.
 
 ### 2.2 Non-functional requirements
 
@@ -86,7 +86,7 @@ A previous attempt at Prism exists at `~/Ideas/Prism-old/`. Per user decision on
 ### 3.1 Monorepo layout
 
 ```
-prism/
+Prism/
 ├── apps/
 │   ├── api/                       Python 3.12 · FastAPI · Celery
 │   │   ├── app/
@@ -291,9 +291,10 @@ Each component specified as **purpose → interface → dependencies**.
 ### 4.4 Shared types (`packages/types`)
 
 ```ts
+// finalize is a Celery chord callback, not a tracked job row — excluded here.
 export type JobType =
   | 'orchestrator' | 'sprint' | 'keyword' | 'competitor'
-  | 'content_audit' | 'llm_visibility' | 'finalize';
+  | 'content_audit' | 'llm_visibility';
 
 export type JobStatus =
   | 'pending' | 'running' | 'complete' | 'complete_with_errors' | 'failed';
@@ -407,9 +408,10 @@ orchestrator  (root, parent_job_id=NULL)
    ├─ keyword          (parent_job_id=sprint.id)
    ├─ competitor       (parent_job_id=sprint.id)
    ├─ content_audit    (parent_job_id=sprint.id)
-   ├─ llm_visibility   (parent_job_id=sprint.id)
-   └─ finalize         (parent_job_id=sprint.id)
+   └─ llm_visibility   (parent_job_id=sprint.id)
 ```
+
+`finalize_task` is the Celery chord's callback — it mutates the `sprint` row's terminal status but does **not** create its own jobs row. That keeps the UI's 5-lane pipeline (orchestrator + 4 research) aligned with job rows 1:1 per lane, with the sprint row itself representing the aggregate state.
 
 ### 5.5 NOTIFY payload
 
@@ -666,9 +668,11 @@ CLAUDE_SEO_PATH=./vendor/claude-seo
 
 ## 9. Migration of claude-seo
 
-Per decision: move `/Users/mohit/Ideas/Prism/claude-seo/` → `/Users/mohit/Ideas/prism/vendor/claude-seo/` as a committed-in copy. Delete the now-empty `/Users/mohit/Ideas/Prism/` (it contains only `test.html` which is empty).
+The `claude-seo/` folder currently sits at the project root alongside the nascent monorepo (`/Users/mohit/Ideas/Prism/claude-seo/`). The macOS filesystem is case-insensitive, so `/Users/mohit/Ideas/Prism/` and `/Users/mohit/Ideas/prism/` are the same directory — Prism uses capital-P on disk.
 
-The loader reads via `$CLAUDE_SEO_PATH` env var so a future switch to git submodule requires no code changes.
+During Foundation implementation the folder is moved to `vendor/claude-seo/` (a committed-in copy, not a submodule). Its inner `.git/` is removed so Git does not re-register it as an embedded repository. Reference material in the root (`prism-product-blueprint.docx`, stray scratch files like `test.html`) is kept out of git via `.gitignore`.
+
+The loader reads via the `$CLAUDE_SEO_PATH` env var (default `./vendor/claude-seo`), so a future switch to a real git submodule requires no code changes.
 
 ---
 

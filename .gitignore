@@ -1,0 +1,54 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# Node / Next.js / Turbo
+node_modules/
+.next/
+out/
+.turbo/
+dist/
+build/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Logs
+*.log
+
+# Reference material — not checked in
+prism-product-blueprint.docx
+test.html
+
+# claude-seo sibling folder before Foundation implementation moves it to vendor/.
+# Once vendor/claude-seo/ exists it is tracked (distinct path, not matched by this).
+/claude-seo/
+
+# Claude Code local overrides
+.claude/settings.local.json

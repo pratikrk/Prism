@@ -17,7 +17,7 @@ Prism is an AI-powered SEO strategy platform. A user describes a traffic goal in
 
 This spec covers **Sub-project #1: Foundation** — the first of seven decomposed pieces. Foundation delivers:
 
-- A monorepo with working infrastructure (Docker, Postgres+pgvector, Redis, PgBouncer)
+- A monorepo with working infrastructure (Neon Postgres with pgvector, Docker-hosted Redis)
 - Next.js web app with Clerk auth, light/dark/system theming, workspace creation, goal input, and a live job-status board
 - FastAPI + Celery backend with the agent runtime contract (`BaseAgent`, `skills_loader`)
 - One fully working end-to-end pipeline: user submits goal → orchestrator agent parses it (live Claude call) → fan-out via Celery chord to 4 research agents → 1 of those agents (`keyword`) is **live** against DataForSEO, other 3 are **stubs** that sleep + return fake data → finalize task rolls up status → UI streams state transitions via SSE
@@ -65,7 +65,7 @@ A previous attempt at Prism exists at `~/Ideas/Prism-old/`. Per user decision on
 - **NF4** Concurrent Celery agent tasks per workspace are capped at `AGENT_CONCURRENCY_PER_WORKSPACE=3`.
 - **NF5** No Celery task ever raises unhandled at the task boundary; all errors are caught, classified, persisted to `jobs.error`, and returned as sentinels so chord callbacks fire.
 - **NF6** Every `jobs.status` transition emits a Postgres `NOTIFY job_events` with JSON payload for SSE forwarding.
-- **NF7** Full local dev setup runs on a single machine from `docker compose up -d` + 3 pnpm/uvicorn/celery commands.
+- **NF7** Full local dev setup runs from a Neon connection string in `.env.local` + `docker compose up -d` (Redis only) + 3 pnpm/uvicorn/celery commands. Integration tests use a local Postgres container under `docker compose --profile test up -d`.
 - **NF8** Unhandled exceptions in FastAPI, Celery, and Next.js are reported to Sentry with taxonomy tags.
 
 ### 2.3 Explicitly out of scope for Foundation
@@ -144,7 +144,7 @@ Prism/
 │   └── superpowers/
 │       └── specs/
 │           └── 2026-04-21-foundation-design.md   (this file)
-├── docker-compose.yml             postgres(pgvector) · redis · pgbouncer
+├── docker-compose.yml             redis (always) · postgres+pgvector (only under 'test' profile)
 ├── .env.example
 ├── .gitignore
 ├── pnpm-workspace.yaml
@@ -209,7 +209,9 @@ Browser (job-board.tsx)
 
 | Process | Command |
 |---|---|
-| Infra | `docker compose up -d` |
+| Postgres | Neon cloud DB — set `DATABASE_URL` (direct endpoint) in `.env.local` |
+| Redis | `docker compose up -d` |
+| Test Postgres (pytest only) | `docker compose --profile test up -d` |
 | API | `uvicorn app.main:app --reload` (:8000) |
 | Celery worker | `celery -A app.workers.celery_app worker -l info -c 4` |
 | Web | `pnpm --filter @prism/web dev` (:3000) |
@@ -267,7 +269,7 @@ Each component specified as **purpose → interface → dependencies**.
 **`core/events.py` + SSE endpoint** (`routes/jobs.py::stream_events`)
 - **Purpose:** asyncpg `LISTEN job_events` on a dedicated connection; forward NOTIFY payloads as SSE frames. Filter server-side by `workspace_id` / `job_id`.
 - **Interface:** `GET /jobs/{id}/events` → `text/event-stream`.
-- **Depends on:** asyncpg, FastAPI `StreamingResponse`.
+- **Depends on:** asyncpg (must connect via Neon's **direct** endpoint — the pooled endpoint runs in transaction mode and drops session-level state such as LISTEN), FastAPI `StreamingResponse`.
 
 **`core/jobs.py::transition`**
 - **Purpose:** Single choke-point for `jobs.status` mutations. Records `started_at`/`completed_at`, issues `NOTIFY`, rejects illegal transitions.
@@ -385,6 +387,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "vector";  -- enabled early; unused in Foundation
 ```
+
+Neon supports all three natively. Alembic runs migrations against `DATABASE_URL` (direct endpoint); no special flags needed.
 
 ### 5.3 Job lifecycle
 
@@ -541,7 +545,7 @@ Retries live inside the agent/integration layer where they have context. No Cele
 
 **Framework:** `pytest`, `pytest-asyncio`, `pytest-mock`, `respx`, `celery[pytest]`. Unit-level Celery tests use `CELERY_TASK_ALWAYS_EAGER=True`; the chord contract test runs a real worker.
 
-**Fixtures (`apps/api/tests/conftest.py`):** `db_session`, `redis`, `mock_claude`, `mock_dataforseo` (respx), `skills_dir` (tiny fixture SKILL.md files).
+**Fixtures (`apps/api/tests/conftest.py`):** `db_session` (async SQLAlchemy against the local Postgres container under the compose `test` profile — **not** Neon, to keep tests fast and hermetic), `redis`, `mock_claude`, `mock_dataforseo` (respx), `skills_dir` (tiny fixture SKILL.md files).
 
 **Key unit tests:**
 
@@ -612,9 +616,13 @@ DATAFORSEO_PASSWORD=
 DATAFORSEO_CONCURRENCY=5
 DATAFORSEO_TIMEOUT=45
 
-# Database
-DATABASE_URL=postgresql+asyncpg://prism:prism@localhost:5433/prism  # PgBouncer port
-POSTGRES_DIRECT_URL=postgresql+asyncpg://prism:prism@localhost:5432/prism  # for migrations
+# Database — Neon (serverless Postgres). Use the DIRECT endpoint (not pooled)
+# so LISTEN/NOTIFY works for SSE and asyncpg prepared statements are fine.
+# Get from https://console.neon.tech → your project → Connection Details → Direct connection
+DATABASE_URL=postgresql+asyncpg://USER:PASSWORD@ep-xxxx.us-east-2.aws.neon.tech/prism?ssl=require
+
+# Test database — local Postgres container, started via `docker compose --profile test up -d`
+TEST_DATABASE_URL=postgresql+asyncpg://prism:prism@localhost:5432/prism_test
 
 # Redis
 REDIS_URL=redis://localhost:6379/0
@@ -640,9 +648,10 @@ CLAUDE_SEO_PATH=./vendor/claude-seo
 
 ### 8.2 `docker-compose.yml` services
 
-- `postgres`: `pgvector/pgvector:pg16`, exposed 5432
-- `pgbouncer`: exposed 5433, transaction pool, 200 max connections
-- `redis`: `redis:7-alpine`, exposed 6379
+- `redis`: `redis:7-alpine`, exposed 6379 — always started
+- `postgres` *(profile: `test`)*: `pgvector/pgvector:pg16`, exposed 5432, database `prism_test` — started only via `docker compose --profile test up -d`; used exclusively by pytest integration fixtures. Dev and prod use Neon.
+
+PgBouncer is **not** part of the stack — Neon provides pooling at the `-pooler` endpoint, which Foundation skips in favor of the direct endpoint (see §4.2 events note).
 
 ### 8.3 `.claude/` and `CLAUDE.md`
 
@@ -695,6 +704,7 @@ The loader reads via the `$CLAUDE_SEO_PATH` env var (default `./vendor/claude-se
 | D13 | Claude model: `claude-sonnet-4-6` | Fast, cheap, reliable structured output |
 | D14 | OpenAI client deferred | Not needed until Clustering sub-project |
 | D15 | No GitHub push in Foundation | User preference — lightest-weight start |
+| D16 | **Neon (serverless Postgres) for dev and prod; local Docker Postgres under compose `test` profile for pytest only**. PgBouncer removed — Neon provides pooling. `DATABASE_URL` uses Neon's direct endpoint (not pooled) so LISTEN/NOTIFY works for SSE and asyncpg prepared statements behave. Pooled endpoint is a future optimization requiring `statement_cache_size=0`. | User preference 2026-04-22; Neon supports pgvector natively; zero local-infra cost for the DB |
 
 ---
 

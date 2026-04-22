@@ -52,3 +52,5 @@ test.html
 
 # Claude Code local overrides
 .claude/settings.local.json
+
+WC.pdf

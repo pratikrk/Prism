@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prism · Foundation mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+  html, body { margin: 0; padding: 0; background: #f0eee9; font-family: 'Inter', system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+
+  /* Prism theme tokens — dark */
+  .prism-dark {
+    --bg: #0a0a0b;
+    --bg-elev: #0f0f11;
+    --bg-card: #111114;
+    --bg-hover: #17171b;
+    --border: #1f1f24;
+    --border-strong: #2a2a31;
+    --text: #ededf0;
+    --text-mut: #8a8a93;
+    --text-dim: #55555d;
+    --accent: #7c5cff;
+    --accent-dim: rgba(124,92,255,0.14);
+    --ok: #3ecf8e;
+    --ok-dim: rgba(62,207,142,0.12);
+    --warn: #f5a524;
+    --warn-dim: rgba(245,165,36,0.12);
+    --err: #ff5b5b;
+    --err-dim: rgba(255,91,91,0.12);
+    --running: #5b8dff;
+    --running-dim: rgba(91,141,255,0.14);
+  }
+  .prism-light {
+    --bg: #fafaf8;
+    --bg-elev: #ffffff;
+    --bg-card: #ffffff;
+    --bg-hover: #f4f4f1;
+    --border: #e8e8e4;
+    --border-strong: #d6d6d1;
+    --text: #111114;
+    --text-mut: #6b6b73;
+    --text-dim: #9a9aa2;
+    --accent: #6544ff;
+    --accent-dim: rgba(101,68,255,0.10);
+    --ok: #14a564;
+    --ok-dim: rgba(20,165,100,0.10);
+    --warn: #c77700;
+    --warn-dim: rgba(199,119,0,0.10);
+    --err: #d9342b;
+    --err-dim: rgba(217,52,43,0.10);
+    --running: #3d6bd9;
+    --running-dim: rgba(61,107,217,0.10);
+  }
+
+  .prism-root {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: 'cv11','ss01','ss03';
+    background: var(--bg);
+    color: var(--text);
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    letter-spacing: -0.011em;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: 'ss01','ss02','cv01'; letter-spacing: 0; }
+  .prism-root::-webkit-scrollbar { width: 6px; height: 6px; }
+  .prism-root::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+  .prism-root *::-webkit-scrollbar { width: 4px; height: 4px; }
+  .prism-root *::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+
+  /* Faint dotted grid background inside each artboard */
+  .prism-grid {
+    background-image: radial-gradient(circle, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 24px 24px;
+    background-position: -1px -1px;
+  }
+  .prism-light .prism-grid {
+    background-image: radial-gradient(circle, rgba(0,0,0,0.04) 1px, transparent 1px);
+  }
+
+  /* Keyframes */
+  @keyframes prism-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+  @keyframes prism-stream {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  @keyframes prism-blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+  @keyframes prism-bar {
+    0% { width: 10%; }
+    100% { width: 85%; }
+  }
+  .prism-caret::after {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 1.1em;
+    background: var(--accent);
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: prism-blink 1s steps(1) infinite;
+  }
+  .prism-pulse-dot { animation: prism-pulse 1.4s ease-in-out infinite; }
+
+  /* Tweaks panel */
+  .tweaks-panel {
+    position: fixed; right: 16px; bottom: 16px; z-index: 50;
+    background: #1b1b20; color: #ededf0;
+    border: 1px solid #2a2a31; border-radius: 10px;
+    padding: 10px 12px; font-family: 'Inter', system-ui, sans-serif; font-size: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    display: none; align-items: center; gap: 10px;
+  }
+  .tweaks-panel.visible { display: flex; }
+  .tweaks-panel label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .tweaks-seg { display: inline-flex; background: #0f0f11; border: 1px solid #2a2a31; border-radius: 6px; padding: 2px; }
+  .tweaks-seg button {
+    border: 0; background: transparent; color: #8a8a93; padding: 4px 10px; font-size: 11px;
+    cursor: pointer; border-radius: 4px; font-family: inherit;
+  }
+  .tweaks-seg button.on { background: #2a2a31; color: #ededf0; }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<div class="tweaks-panel" id="tweaks-panel">
+  <span style="color:#8a8a93;">Theme</span>
+  <div class="tweaks-seg" id="theme-seg">
+    <button data-theme="dark" class="on">Dark</button>
+    <button data-theme="light">Light</button>
+  </div>
+</div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="prism-primitives.jsx"></script>
+<script type="text/babel" src="screen-goal.jsx"></script>
+<script type="text/babel" src="screen-board.jsx"></script>
+<script type="text/babel" src="screen-results.jsx"></script>
+<script type="text/babel" src="app.jsx"></script>
+</body>
+</html>

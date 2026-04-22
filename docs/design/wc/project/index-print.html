@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prism · Foundation mockup — print</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+  html, body { margin: 0; padding: 0; background: #f0eee9; font-family: 'Inter', system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+
+  /* Prism theme tokens — dark */
+  .prism-dark {
+    --bg: #0a0a0b;
+    --bg-elev: #0f0f11;
+    --bg-card: #111114;
+    --bg-hover: #17171b;
+    --border: #1f1f24;
+    --border-strong: #2a2a31;
+    --text: #ededf0;
+    --text-mut: #8a8a93;
+    --text-dim: #55555d;
+    --accent: #7c5cff;
+    --accent-dim: rgba(124,92,255,0.14);
+    --ok: #3ecf8e;
+    --ok-dim: rgba(62,207,142,0.12);
+    --warn: #f5a524;
+    --warn-dim: rgba(245,165,36,0.12);
+    --err: #ff5b5b;
+    --err-dim: rgba(255,91,91,0.12);
+    --running: #5b8dff;
+    --running-dim: rgba(91,141,255,0.14);
+  }
+  .prism-light {
+    --bg: #fafaf8; --bg-elev: #ffffff; --bg-card: #ffffff; --bg-hover: #f4f4f1;
+    --border: #e8e8e4; --border-strong: #d6d6d1;
+    --text: #111114; --text-mut: #6b6b73; --text-dim: #9a9aa2;
+    --accent: #6544ff; --accent-dim: rgba(101,68,255,0.10);
+    --ok: #14a564; --ok-dim: rgba(20,165,100,0.10);
+    --warn: #c77700; --warn-dim: rgba(199,119,0,0.10);
+    --err: #d9342b; --err-dim: rgba(217,52,43,0.10);
+    --running: #3d6bd9; --running-dim: rgba(61,107,217,0.10);
+  }
+
+  .prism-root {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: 'cv11','ss01','ss03';
+    background: var(--bg); color: var(--text);
+    width: 100%; height: 100%;
+    overflow: hidden;
+    letter-spacing: -0.011em; font-size: 13px; line-height: 1.5;
+  }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: 'ss01','ss02','cv01'; letter-spacing: 0; }
+
+  .prism-grid {
+    background-image: radial-gradient(circle, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 24px 24px; background-position: -1px -1px;
+  }
+  .prism-light .prism-grid {
+    background-image: radial-gradient(circle, rgba(0,0,0,0.04) 1px, transparent 1px);
+  }
+  .prism-pulse-dot { /* static in print */ }
+  .prism-caret::after {
+    content:''; display:inline-block; width:8px; height:1.1em;
+    background: var(--accent); margin-left:2px; vertical-align:text-bottom;
+  }
+
+  /* --- Print layout --- */
+  /* Screen preview: show each artboard on a warm gray page-like sheet */
+  body { background: #f0eee9; }
+  .print-doc { padding: 24px 0; }
+  .print-page {
+    width: 1280px;
+    height: 800px;
+    margin: 0 auto 32px;
+    background: #000;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+    overflow: hidden;
+    position: relative;
+  }
+  .print-label {
+    width: 1280px; margin: 0 auto 8px;
+    font-size: 12px; color: rgba(40,30,20,0.6);
+    font-family: 'JetBrains Mono', monospace;
+    display: flex; gap: 10px; align-items: baseline;
+  }
+  .print-label b { color: rgba(40,30,20,0.85); font-weight: 600; font-family: 'Inter', sans-serif; letter-spacing: -0.1px; }
+
+  @page { size: 1280px 840px; margin: 0; }
+  @media print {
+    html, body { background: #fff !important; }
+    .print-doc { padding: 0; }
+    .print-page {
+      margin: 0 auto;
+      box-shadow: none;
+      break-after: page;
+      page-break-after: always;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .print-page:last-child { break-after: auto; page-break-after: auto; }
+    .print-label { display: none; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="print-root"></div>
+
+<script type="text/babel" src="prism-primitives.jsx"></script>
+<script type="text/babel" src="screen-goal.jsx"></script>
+<script type="text/babel" src="screen-board.jsx"></script>
+<script type="text/babel" src="screen-results.jsx"></script>
+<script type="text/babel">
+  function PrintDoc() {
+    const theme = 'dark';
+    const pages = [
+      { id: 'goal',    label: '01 · Goal input (hero)',          Comp: GoalScreen },
+      { id: 'board',   label: '02 · Live job board (DAG)',       Comp: BoardScreen },
+      { id: 'results', label: '03 · Keyword results · 412 rows', Comp: ResultsScreen },
+    ];
+    return (
+      <div className="print-doc">
+        {pages.map(p => (
+          <React.Fragment key={p.id}>
+            <div className="print-label"><b>Prism · Foundation</b><span>{p.label}</span></div>
+            <div className="print-page"><p.Comp theme={theme} /></div>
+          </React.Fragment>
+        ))}
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('print-root')).render(<PrintDoc />);
+
+  // Auto-print after fonts + JSX ready
+  (async () => {
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch(e) {}
+    await new Promise(r => setTimeout(r, 800));
+    window.print();
+  })();
+</script>
+</body>
+</html>

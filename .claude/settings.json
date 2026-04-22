@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm *)",
+      "Bash(pnpm install*)",
+      "Bash(pnpm --filter * *)",
+      "Bash(uv *)",
+      "Bash(uv run *)",
+      "Bash(pytest*)",
+      "Bash(docker compose*)",
+      "Bash(alembic *)",
+      "Bash(git *)",
+      "Bash(make *)"
+    ]
+  }
+}

@@ -46,10 +46,6 @@ htmlcov/
 prism-product-blueprint.docx
 test.html
 
-# claude-seo sibling folder before Foundation implementation moves it to vendor/.
-# Once vendor/claude-seo/ exists it is tracked (distinct path, not matched by this).
-/claude-seo/
-
 # Claude Code local overrides
 .claude/settings.local.json
 

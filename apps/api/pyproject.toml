@@ -29,6 +29,7 @@ dev = [
   "pytest-asyncio>=0.24",
   "pytest-mock>=3.14",
   "respx>=0.21",
+  "fakeredis>=2.26",
   "ruff>=0.8",
   "mypy>=1.13",
   "types-redis",

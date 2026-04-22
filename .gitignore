@@ -45,6 +45,7 @@ htmlcov/
 # Reference material — not checked in
 prism-product-blueprint.docx
 test.html
+WC.pdf
 
 # Claude Code local overrides
 .claude/settings.local.json

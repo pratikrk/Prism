@@ -15,10 +15,14 @@ export default function NewWorkspacePage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-    const token = await getToken();
-    if (!token) return;
-    const w = await createWorkspace(token, { name, domain });
-    router.push(`/workspaces/${w.id}`);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const w = await createWorkspace(token, { name, domain });
+      router.push(`/workspaces/${w.id}`);
+    } finally {
+      setSubmitting(false);
+    }
   }
   return (
     <form onSubmit={submit} className="space-y-4 max-w-md">

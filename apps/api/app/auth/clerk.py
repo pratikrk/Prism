@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 
 import jwt
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Query, status
 from jwt import PyJWKClient
 
 from app.core.config import settings
@@ -22,10 +22,14 @@ class ClerkPrincipal:
 
 async def current_user(
     authorization: str | None = Header(default=None, alias="Authorization"),
+    t: str | None = Query(default=None),
 ) -> ClerkPrincipal:
-    if not authorization or not authorization.startswith("Bearer "):
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.removeprefix("Bearer ").strip()
+    elif t:
+        token = t
+    else:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing bearer token")
-    token = authorization.removeprefix("Bearer ").strip()
     try:
         signing_key = _jwks_client().get_signing_key_from_jwt(token).key
         claims = jwt.decode(

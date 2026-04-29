@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -12,7 +12,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[4]
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env", ".env.local"),
+        env_file=(_REPO_ROOT / ".env", _REPO_ROOT / ".env.local"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     sentry_env: str = "development"
 
     claude_seo_path: Path = Field(default=_REPO_ROOT / "vendor" / "claude-seo")
+
+    @model_validator(mode="after")
+    def _resolve_claude_seo_path(self) -> "Settings":
+        if not self.claude_seo_path.is_absolute():
+            self.claude_seo_path = (_REPO_ROOT / self.claude_seo_path).resolve()
+        return self
 
     @property
     def database_url_sync_for_alembic(self) -> str:

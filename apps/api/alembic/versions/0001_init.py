@@ -209,7 +209,8 @@ def upgrade() -> None:
         sa.UniqueConstraint("job_id"),
     )
 
-    # NOTIFY trigger for SSE
+    # NOTIFY trigger for SSE — split into two op.execute calls (asyncpg forbids
+    # multiple statements in a single prepared statement)
     op.execute("""
         CREATE OR REPLACE FUNCTION notify_job_event() RETURNS trigger AS $$
         DECLARE
@@ -230,11 +231,12 @@ def upgrade() -> None:
           END IF;
           RETURN NEW;
         END;
-        $$ LANGUAGE plpgsql;
-
+        $$ LANGUAGE plpgsql
+    """)
+    op.execute("""
         CREATE TRIGGER jobs_notify_event
           AFTER INSERT OR UPDATE OF status ON jobs
-          FOR EACH ROW EXECUTE FUNCTION notify_job_event();
+          FOR EACH ROW EXECUTE FUNCTION notify_job_event()
     """)
 
 

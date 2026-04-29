@@ -1,4 +1,4 @@
-.PHONY: install dev test test-api test-web migrate migrate-new redis redis-test api worker web
+.PHONY: install dev up test test-api test-web migrate migrate-new redis redis-test api worker web
 
 install:
 	pnpm install
@@ -12,8 +12,18 @@ dev:
 	@echo "  2) cd apps/api && uv run celery -A app.workers.celery_app worker -l info -c 4"
 	@echo "  3) pnpm --filter @prism/web dev"
 
+up:
+	brew services start redis 2>/dev/null || true
+	cd apps/api && uv run alembic upgrade head
+	@echo "Starting API, Celery worker, and Next.js dev server..."
+	@trap 'kill 0' SIGINT SIGTERM; \
+	cd apps/api && uv run uvicorn app.main:app --reload --port 8000 & \
+	cd apps/api && uv run celery -A app.workers.celery_app worker -l info -c 4 & \
+	pnpm --filter @prism/web dev & \
+	wait
+
 redis:
-	docker compose up -d redis
+	brew services start redis
 
 redis-test:
 	docker compose --profile test up -d

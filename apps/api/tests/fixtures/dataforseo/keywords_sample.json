@@ -10,13 +10,15 @@
           "keyword": "applicant tracking system",
           "search_volume": 4400,
           "keyword_difficulty": 45,
-          "competition": 0.6
+          "competition": "HIGH",
+          "competition_index": 60
         },
         {
           "keyword": "ats software",
           "search_volume": 2900,
           "keyword_difficulty": 52,
-          "competition": 0.5
+          "competition": "MEDIUM",
+          "competition_index": 50
         }
       ]
     }

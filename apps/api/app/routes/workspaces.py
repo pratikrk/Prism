@@ -5,11 +5,12 @@ import uuid
 import pydantic
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.clerk import ClerkPrincipal, current_user
 from app.core.db import get_session
-from app.models import Workspace
+from app.models import User, Workspace
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
@@ -29,12 +30,24 @@ class WorkspaceOut(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(from_attributes=True)
 
 
+async def _ensure_user(session: AsyncSession, principal: ClerkPrincipal) -> None:
+    """Upsert user row from JWT claims. Webhook keeps it up-to-date in prod;
+    this covers local dev where Clerk can't POST to localhost."""
+    stmt = (
+        pg_insert(User)
+        .values(id=principal.user_id, email=f"{principal.user_id}@clerk.local", name="")
+        .on_conflict_do_nothing(index_elements=["id"])
+    )
+    await session.execute(stmt)
+
+
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=WorkspaceOut)
 async def create_workspace(
     body: WorkspaceIn,
     principal: ClerkPrincipal = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ) -> Workspace:
+    await _ensure_user(session, principal)
     w = Workspace(
         user_id=principal.user_id,
         org_id=principal.org_id,

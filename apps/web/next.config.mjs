@@ -4,6 +4,7 @@ import { withSentryConfig } from '@sentry/nextjs';
 const nextConfig = {
   transpilePackages: ['@prism/types'],
   experimental: { typedRoutes: true },
+  turbopack: {},
 };
 
 export default withSentryConfig(nextConfig, {

@@ -13,8 +13,14 @@ from sqlalchemy.ext.asyncio import (
 
 from app.core.config import settings
 
+_db_url = settings.database_url.replace(
+    "postgresql://", "postgresql+asyncpg://", 1
+).replace(
+    "postgres://", "postgresql+asyncpg://", 1
+)
+
 _engine: AsyncEngine = create_async_engine(
-    settings.database_url,
+    _db_url,
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=5,

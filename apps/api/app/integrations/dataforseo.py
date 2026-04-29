@@ -30,7 +30,8 @@ class KeywordRow(pydantic.BaseModel):
     keyword: str
     search_volume: int | None = None
     keyword_difficulty: int | None = None
-    competition: float | None = None
+    competition: str | None = None        # 'HIGH' | 'MEDIUM' | 'LOW' from Google Ads
+    competition_index: int | None = None  # 0–100 numeric equivalent
 
 
 class DataForSEOClient:

@@ -10,8 +10,9 @@ from app.models import Job
 
 _ALLOWED: dict[str, set[str]] = {
     "pending": {"running"},
-    "running": {"complete", "failed", "complete_with_errors", "awaiting_gate0"},
+    "running": {"complete", "failed", "complete_with_errors", "awaiting_gate0", "awaiting_gate1"},
     "awaiting_gate0": {"complete"},
+    "awaiting_gate1": {"complete", "running"},
     "complete": set(),
     "failed": {"running"},
     "complete_with_errors": set(),
@@ -34,9 +35,9 @@ async def transition(
         raise IllegalTransition(
             f"{job.type} job {job.id}: illegal transition {job.status} -> {new_status}"
         )
-    if new_status == "complete_with_errors" and job.type != "sprint":
+    if new_status in {"complete_with_errors", "awaiting_gate1"} and job.type != "sprint":
         raise IllegalTransition(
-            f"{job.type} job {job.id}: complete_with_errors is only valid for sprint jobs"
+            f"{job.type} job {job.id}: {new_status} is only valid for sprint jobs"
         )
 
     now = datetime.now(timezone.utc)

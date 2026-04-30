@@ -68,3 +68,24 @@ async def test_awaiting_gate0_illegal_to_running(db_session, sample_job):
     job = await sample_job(status="awaiting_gate0", type="orchestrator")
     with pytest.raises(IllegalTransition):
         await transition(db_session, job, "running")
+
+
+@pytest.mark.asyncio
+async def test_running_to_awaiting_gate1(db_session, sample_job):
+    job = await sample_job(status="running", type="sprint")
+    result = await transition(db_session, job, "awaiting_gate1")
+    assert result.status == "awaiting_gate1"
+
+
+@pytest.mark.asyncio
+async def test_awaiting_gate1_to_complete(db_session, sample_job):
+    job = await sample_job(status="awaiting_gate1", type="sprint")
+    result = await transition(db_session, job, "complete")
+    assert result.status == "complete"
+
+
+@pytest.mark.asyncio
+async def test_awaiting_gate1_illegal_on_non_sprint(db_session, sample_job):
+    job = await sample_job(status="running", type="keyword")
+    with pytest.raises(IllegalTransition):
+        await transition(db_session, job, "awaiting_gate1")

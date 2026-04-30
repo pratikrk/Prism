@@ -598,12 +598,84 @@ function LLMTab({ brief }: { brief: FullBrief }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Summary stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-        <StatCard label="Brand mentioned" value={llm.brand_mentioned ? 'Yes' : 'No'} highlight={llm.brand_mentioned} />
-        <StatCard label="Mention count" value={String(llm.mention_count)} />
-        <StatCard label="Queries tested" value={String(llm.queries_tested.length)} />
-      </div>
+      {/* Per-LLM breakdown cards (if available) */}
+      {llm.llm_breakdown ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          {llm.llm_breakdown.map((item) => (
+            <div key={item.name} style={{
+              border: '1px solid var(--border)', borderRadius: 7,
+              background: 'var(--bg-card)', padding: '14px 16px',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{item.name}</span>
+                <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.4px' }}>
+                  {(item.citation_rate * 100).toFixed(0)}%
+                </span>
+              </div>
+              <div style={{ width: '100%', height: 4, borderRadius: 2, background: 'var(--bg-hover)', overflow: 'hidden', marginBottom: 6 }}>
+                <div style={{
+                  width: `${item.citation_rate * 100}%`, height: '100%',
+                  background: item.citation_rate > 0.5 ? 'var(--ok)' : item.citation_rate > 0.2 ? '#d97706' : 'var(--running)',
+                  borderRadius: 2,
+                }} />
+              </div>
+              <div className="mono" style={{ fontSize: 10, color: 'var(--text-dim)' }}>
+                {item.cited}/{item.total} queries cited
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* Fallback: original 3-stat view */
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          <StatCard label="Brand mentioned" value={llm.brand_mentioned ? 'Yes' : 'No'} highlight={llm.brand_mentioned} />
+          <StatCard label="Mention count" value={String(llm.mention_count)} />
+          <StatCard label="Queries tested" value={String(llm.queries_tested.length)} />
+        </div>
+      )}
+
+      {/* GEO recommendations table (if available) */}
+      {llm.geo_recommendations && llm.geo_recommendations.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, fontWeight: 500 }}>
+            GEO action items
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                {['Action', 'Impact', 'Effort'].map(h => (
+                  <th key={h} style={{
+                    padding: '7px 10px', textAlign: h === 'Action' ? 'left' : 'center',
+                    fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase',
+                    letterSpacing: 0.8, fontWeight: 500,
+                  }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {llm.geo_recommendations.map((rec, i) => {
+                const effortColor = rec.effort === 'Low' ? 'var(--ok)' : rec.effort === 'Med' ? '#d97706' : 'var(--err)';
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '8px 10px', color: 'var(--text)' }}>{rec.action}</td>
+                    <td className="mono" style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--accent)', fontWeight: 600 }}>
+                      +{rec.impact_pct}%
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                      <span style={{
+                        fontSize: 10, padding: '2px 8px', borderRadius: 3, fontWeight: 500,
+                        background: `${effortColor}22`, color: effortColor,
+                      }}>
+                        {rec.effort}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Competitor mentions */}
       {Object.keys(llm.competitor_mentions).length > 0 && (

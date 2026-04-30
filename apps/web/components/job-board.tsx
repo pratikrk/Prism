@@ -215,8 +215,8 @@ function AgentRow({ type, job, onRetry, workspaceId, briefId }: {
       </span>
       <div style={{ width: 50, display: 'flex', justifyContent: 'flex-end' }}>
         {viewHref ? (
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          <Link href={viewHref as any} style={{
+          // @ts-expect-error Next.js Link accepts string in href
+          <Link href={viewHref!} style={{
             fontSize: 11, padding: '3px 9px', borderRadius: 4,
             border: '1px solid var(--accent)', background: 'var(--accent-dim, rgba(99,102,241,0.14))',
             color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap',
@@ -289,8 +289,8 @@ function SynthesisRow({ sprintStatus, briefId, workspaceId }: {
       <span className="mono" style={{ fontSize: 10, color: 'var(--text-dim)', minWidth: 45, textAlign: 'right' }}>—</span>
       <div style={{ width: 50, display: 'flex', justifyContent: 'flex-end' }}>
         {viewHref && (
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          <Link href={viewHref as any} style={{
+          // @ts-expect-error Next.js Link accepts string in href
+          <Link href={viewHref!} style={{
             fontSize: 11, padding: '3px 9px', borderRadius: 4,
             border: '1px solid var(--accent)', background: 'var(--accent-dim, rgba(99,102,241,0.14))',
             color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap',
@@ -383,7 +383,10 @@ export function JobBoard({
   const latestByType = useMemo(() => {
     const map = new Map<JobType, Job>();
     for (const j of initialJobs) {
-      if (!map.has(j.type)) map.set(j.type, j);
+      const existing = map.get(j.type);
+      if (!existing || Date.parse(j.created_at) >= Date.parse(existing.created_at)) {
+        map.set(j.type, j);
+      }
     }
     for (const e of events) {
       const existing = map.get(e.type);
@@ -436,14 +439,16 @@ export function JobBoard({
       ))}
 
       {/* Divider before synthesis */}
-      <div style={{ height: 1, background: 'var(--border)', margin: '0 14px' }} />
+      {sprintStatus && <div style={{ height: 1, background: 'var(--border)', margin: '0 14px' }} />}
 
       {/* Synthesis row */}
-      <SynthesisRow
-        sprintStatus={sprintStatus ?? 'pending'}
-        briefId={briefId}
-        workspaceId={workspaceId}
-      />
+      {sprintStatus && (
+        <SynthesisRow
+          sprintStatus={sprintStatus}
+          briefId={briefId}
+          workspaceId={workspaceId}
+        />
+      )}
 
       {/* Log stream */}
       <LogStream events={events} isRunning={isRunning} />

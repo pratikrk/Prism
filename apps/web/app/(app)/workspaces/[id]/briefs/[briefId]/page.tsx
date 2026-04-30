@@ -243,57 +243,240 @@ function ClustersTab({ brief }: { brief: FullBrief }) {
   );
 }
 
+/* ─── Keywords tab helpers ──────────────────────────────────────────────────── */
+function Sparkline({ trend }: { trend?: number[] }) {
+  if (!trend?.length) return <span style={{ color: 'var(--text-dim)', fontSize: 10 }}>—</span>;
+  const max = Math.max(...trend, 1);
+  const W = 40, H = 14;
+  const pts = trend.map((v, i) => {
+    const x = (i / (trend.length - 1)) * W;
+    const y = H - (v / max) * H;
+    return `${x},${y}`;
+  }).join(' ');
+  return (
+    <svg width={W} height={H} style={{ overflow: 'visible' }}>
+      <polyline points={pts} fill="none" stroke="var(--running)" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
+function KdBar({ kd }: { kd: number | null }) {
+  if (kd == null) return <span style={{ color: 'var(--text-dim)', fontSize: 10 }}>—</span>;
+  const color = kd < 30 ? 'var(--ok)' : kd < 55 ? '#d97706' : 'var(--err)';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+      <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--bg-hover)', overflow: 'hidden' }}>
+        <div style={{ width: `${kd}%`, height: '100%', background: color, borderRadius: 2 }} />
+      </div>
+      <span style={{ fontSize: 10, color, fontWeight: 500, fontFamily: 'var(--font-mono, monospace)' }}>{kd}</span>
+    </div>
+  );
+}
+
 /* ─── Keywords tab ──────────────────────────────────────────────────────────── */
+type SortField = 'priority_score' | 'volume' | 'difficulty';
+type IntentFilter = 'All' | 'TOF' | 'MOF' | 'BOF';
+
 function KeywordsTab({ brief }: { brief: FullBrief }) {
   const kw = brief.keyword_result;
+  const [search, setSearch] = useState('');
+  const [intent, setIntent] = useState<IntentFilter>('All');
+  const [sort, setSort] = useState<{ field: SortField; dir: 'asc' | 'desc' }>({ field: 'priority_score', dir: 'desc' });
+  const [expanded, setExpanded] = useState<string | null>(null);
+
   if (!kw?.keywords?.length) return <Empty label="Keyword data not available." />;
 
-  const sorted = [...kw.keywords].sort((a: KeywordRow, b: KeywordRow) => b.priority_score - a.priority_score);
+  const allKws = kw.keywords;
+  const avgKd = allKws.reduce((s, k) => s + (k.difficulty ?? 0), 0) / allKws.length;
+  const totalVol = allKws.reduce((s, k) => s + (k.volume ?? 0), 0);
+  const priorityPool = allKws.filter(k => k.priority_score >= 70).length;
+
+  const filtered = allKws
+    .filter(k => search === '' || k.term.toLowerCase().includes(search.toLowerCase()))
+    .filter(k => intent === 'All' || k.intent === intent)
+    .sort((a, b) => {
+      const mul = sort.dir === 'desc' ? -1 : 1;
+      const va = sort.field === 'volume' ? (a.volume ?? 0)
+               : sort.field === 'difficulty' ? (a.difficulty ?? 0)
+               : a.priority_score;
+      const vb = sort.field === 'volume' ? (b.volume ?? 0)
+               : sort.field === 'difficulty' ? (b.difficulty ?? 0)
+               : b.priority_score;
+      return (va - vb) * mul;
+    });
+
+  function toggleSort(field: SortField) {
+    setSort(prev => prev.field === field
+      ? { field, dir: prev.dir === 'desc' ? 'asc' : 'desc' }
+      : { field, dir: 'desc' });
+  }
+
+  const intentColors: Record<string, { bg: string; color: string }> = {
+    TOF: { bg: 'rgba(91,141,255,0.12)', color: '#5b8dff' },
+    MOF: { bg: 'rgba(245,165,36,0.12)', color: '#d97706' },
+    BOF: { bg: 'rgba(62,207,142,0.12)', color: 'var(--ok)' },
+  };
+
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-        <thead>
-          <tr style={{ borderBottom: '1px solid var(--border)' }}>
-            {['Keyword', 'Volume', 'Difficulty', 'Priority'].map((h) => (
-              <th key={h} style={{
-                padding: '8px 10px', textAlign: h === 'Keyword' ? 'left' : 'right',
-                fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase',
-                letterSpacing: 0.8, fontWeight: 500,
-              }}>
-                {h}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Stat strip */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        {([
+          { label: 'Total keywords', value: allKws.length.toLocaleString() },
+          { label: 'Avg difficulty', value: avgKd.toFixed(0), bar: avgKd },
+          { label: 'Total volume', value: `${Math.round(totalVol / 1000)}k` },
+          { label: 'Priority pool', value: priorityPool.toString(), accent: true },
+        ] as Array<{ label: string; value: string; bar?: number; accent?: boolean }>).map(({ label, value, bar, accent }) => (
+          <div key={label} style={{
+            border: '1px solid var(--border)', borderRadius: 7,
+            background: 'var(--bg-card)', padding: '10px 12px',
+          }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: accent ? 'var(--accent)' : 'var(--text)', marginBottom: 2 }}>
+              {value}
+            </div>
+            {bar != null && (
+              <div style={{ width: '100%', height: 3, borderRadius: 2, background: 'var(--bg-hover)', marginBottom: 4, overflow: 'hidden' }}>
+                <div style={{ width: `${Math.min(bar, 100)}%`, height: '100%', background: bar < 30 ? 'var(--ok)' : bar < 55 ? '#d97706' : 'var(--err)' }} />
+              </div>
+            )}
+            <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter bar */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          type="text"
+          placeholder="Search keywords…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{
+            flex: 1, padding: '7px 10px', borderRadius: 6, fontSize: 12,
+            border: '1px solid var(--border)', background: 'var(--bg-card)',
+            color: 'var(--text)', outline: 'none',
+          }}
+        />
+        {(['All', 'TOF', 'MOF', 'BOF'] as IntentFilter[]).map(f => (
+          <button key={f} onClick={() => setIntent(f)} style={{
+            padding: '5px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500,
+            border: 'none', cursor: 'pointer',
+            background: intent === f ? 'var(--accent)' : 'var(--bg-hover)',
+            color: intent === f ? '#fff' : 'var(--text-dim)',
+          }}>
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)' }}>
+              <th style={{ padding: '7px 10px', textAlign: 'left', fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 500 }}>
+                Keyword
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((row: KeywordRow, i: number) => (
-            <tr key={i} style={{
-              borderBottom: '1px solid var(--border)',
-              background: i % 2 === 0 ? 'transparent' : 'var(--bg-hover)',
-            }}>
-              <td style={{ padding: '8px 10px', color: 'var(--text)' }}>{row.term}</td>
-              <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-mut)' }}>
-                {row.volume?.toLocaleString() ?? '—'}
-              </td>
-              <td style={{ padding: '8px 10px', textAlign: 'right' }}>
-                {row.difficulty != null ? (
-                  <span style={{
-                    fontSize: 10, padding: '2px 7px', borderRadius: 4,
-                    background: row.difficulty < 30 ? 'var(--ok-dim)' : row.difficulty < 60 ? 'rgba(245,165,36,0.12)' : 'var(--err-dim)',
-                    color: row.difficulty < 30 ? 'var(--ok)' : row.difficulty < 60 ? '#d97706' : 'var(--err)',
-                    fontWeight: 500,
-                  }}>
-                    {row.difficulty}
-                  </span>
-                ) : '—'}
-              </td>
-              <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--accent)', fontWeight: 600 }}>
-                {row.priority_score.toFixed(1)}
-              </td>
+              {([['Volume', 'volume'], ['KD', 'difficulty'], ['CPC', null], ['Intent', null], ['Trend', null], ['Competitor', null], ['Score', 'priority_score']] as Array<[string, SortField | null]>).map(([h, sf]) => (
+                <th key={h}
+                  onClick={sf ? () => toggleSort(sf) : undefined}
+                  style={{
+                    padding: '7px 10px', textAlign: 'right',
+                    fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase',
+                    letterSpacing: 0.8, fontWeight: 500,
+                    cursor: sf ? 'pointer' : undefined,
+                    userSelect: 'none',
+                  }}
+                >
+                  {h}{sf && sort.field === sf ? (sort.dir === 'desc' ? ' ↓' : ' ↑') : ''}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {filtered.map((row: KeywordRow, i: number) => {
+              const ic = row.intent ? intentColors[row.intent] : null;
+              const isExp = expanded === row.term;
+              return (
+                <React.Fragment key={row.term}>
+                  <tr
+                    onClick={() => setExpanded(isExp ? null : row.term)}
+                    style={{
+                      borderBottom: '1px solid var(--border)',
+                      background: isExp ? 'var(--bg-hover)' : i % 2 === 0 ? 'transparent' : 'var(--bg-hover)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <td style={{ padding: '8px 10px', color: 'var(--text)' }}>{row.term}</td>
+                    <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-mut)' }}>
+                      {row.volume?.toLocaleString() ?? '—'}
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                      <KdBar kd={row.difficulty} />
+                    </td>
+                    <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-mut)' }}>
+                      {row.cpc != null ? `$${row.cpc.toFixed(2)}` : '—'}
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                      {ic ? (
+                        <span style={{
+                          fontSize: 10, padding: '2px 7px', borderRadius: 3, fontWeight: 500,
+                          background: ic.bg, color: ic.color,
+                          fontFamily: 'var(--font-mono, monospace)',
+                        }}>
+                          {row.intent}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                      <Sparkline trend={row.trend} />
+                    </td>
+                    <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-dim)', fontSize: 11 }}>
+                      {row.top_competitor ?? '—'}
+                    </td>
+                    <td style={{ padding: '8px 10px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5 }}>
+                        <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--bg-hover)', overflow: 'hidden' }}>
+                          <div style={{
+                            width: `${row.priority_score}%`, height: '100%',
+                            background: row.priority_score >= 70 ? 'var(--ok)' : row.priority_score >= 50 ? '#d97706' : 'var(--text-dim)',
+                            borderRadius: 2,
+                          }} />
+                        </div>
+                        <span className="mono" style={{ fontSize: 10, fontWeight: 600, color: 'var(--accent)', minWidth: 28 }}>
+                          {row.priority_score.toFixed(0)}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                  {isExp && (
+                    <tr key={`${row.term}-exp`} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td colSpan={8} style={{ padding: '10px 14px', background: 'var(--bg-elev)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>URL slug</div>
+                            <div className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>/{row.term.toLowerCase().replace(/\s+/g, '-')}</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>Intent</div>
+                            <div style={{ fontSize: 11, color: 'var(--text)' }}>{row.intent ?? 'Unknown'}</div>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>Content type</div>
+                            <div style={{ fontSize: 11, color: 'var(--text)' }}>
+                              {row.intent === 'BOF' ? 'Landing page' : row.intent === 'MOF' ? 'Comparison guide' : 'Informational article'}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

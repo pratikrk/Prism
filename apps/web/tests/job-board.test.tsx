@@ -9,11 +9,11 @@ const base: Omit<Job, 'type' | 'status' | 'id'> = {
 };
 
 describe('JobBoard', () => {
-  it('renders 5 lanes and applies status from events', () => {
+  it('renders 4 agent lanes and applies status from events', () => {
     const onRetry = vi.fn();
     render(
       <JobBoard
-        initialJobs={[{ ...base, id: 'o1', type: 'orchestrator', status: 'pending' }]}
+        initialJobs={[]}
         events={[
           {
             job_id: 'k1', parent_job_id: 's1', workspace_id: 'w1',
@@ -23,8 +23,10 @@ describe('JobBoard', () => {
         onRetry={onRetry}
       />,
     );
-    expect(screen.getByText('Orchestrator')).toBeInTheDocument();
-    expect(screen.getAllByText('running').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Keyword')).toBeInTheDocument();
+    expect(screen.getByText('Competitor')).toBeInTheDocument();
+    expect(screen.getByText('Content audit')).toBeInTheDocument();
+    expect(screen.getByText('LLM visibility')).toBeInTheDocument();
   });
 
   it('retry button calls onRetry for retryable failures', () => {

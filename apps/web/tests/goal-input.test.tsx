@@ -7,7 +7,7 @@ describe('GoalInput', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(<GoalInput onSubmit={onSubmit} />);
     fireEvent.change(screen.getByTestId('goal-textarea'), { target: { value: 'rank for X' } });
-    fireEvent.click(screen.getByRole('button', { name: /submit/i }));
+    fireEvent.click(screen.getByRole('button', { name: /plan sprint/i }));
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith('rank for X'));
   });
 
@@ -19,8 +19,9 @@ describe('GoalInput', () => {
 
   it('chip click fills textarea', () => {
     render(<GoalInput onSubmit={vi.fn()} />);
-    const chip = screen.getAllByRole('button', { name: /…/ })[0];
-    fireEvent.click(chip);
+    const chip = screen.getAllByRole('button').find(b => b.textContent?.includes('ATS for startups'));
+    expect(chip).toBeDefined();
+    fireEvent.click(chip!);
     expect((screen.getByTestId('goal-textarea') as HTMLTextAreaElement).value).not.toBe('');
   });
 });

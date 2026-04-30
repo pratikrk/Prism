@@ -4,5 +4,6 @@ import { auth } from '@clerk/nextjs/server';
 export default async function Home() {
   const { userId } = await auth();
   if (userId) redirect('/workspaces');
-  else redirect('/sign-in');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  else redirect('/sign-in' as any);
 }

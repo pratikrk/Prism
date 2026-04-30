@@ -39,14 +39,24 @@ export default function WorkspaceDetailPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
-      <ConversationThread
-        items={items}
-        token={token ?? ''}
-        workspaceId={id}
-        onRefetch={() => mutate()}
-      />
-      <div className="border-t pt-4 mt-4">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* Thread */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 24px 0' }}>
+        <ConversationThread
+          items={items}
+          token={token ?? ''}
+          workspaceId={id}
+          onRefetch={() => mutate()}
+        />
+      </div>
+
+      {/* Fixed goal input at bottom */}
+      <div style={{
+        borderTop: '1px solid var(--border)',
+        background: 'var(--bg)',
+        padding: '20px 24px',
+        display: 'flex', justifyContent: 'center',
+      }}>
         <GoalInput onSubmit={handleSubmit} />
       </div>
     </div>

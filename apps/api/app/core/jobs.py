@@ -10,7 +10,8 @@ from app.models import Job
 
 _ALLOWED: dict[str, set[str]] = {
     "pending": {"running"},
-    "running": {"complete", "failed", "complete_with_errors"},
+    "running": {"complete", "failed", "complete_with_errors", "awaiting_gate0"},
+    "awaiting_gate0": {"complete"},
     "complete": set(),
     "failed": {"running"},
     "complete_with_errors": set(),

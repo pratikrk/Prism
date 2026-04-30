@@ -47,3 +47,24 @@ async def test_complete_with_errors_only_on_sprint(db_session, sample_job):
     sprint = await sample_job(status="running", type="sprint")
     await transition(db_session, sprint, "complete_with_errors")
     assert sprint.status == "complete_with_errors"
+
+
+@pytest.mark.asyncio
+async def test_running_to_awaiting_gate0(db_session, sample_job):
+    job = await sample_job(status="running", type="orchestrator")
+    result = await transition(db_session, job, "awaiting_gate0")
+    assert result.status == "awaiting_gate0"
+
+
+@pytest.mark.asyncio
+async def test_awaiting_gate0_to_complete(db_session, sample_job):
+    job = await sample_job(status="awaiting_gate0", type="orchestrator")
+    result = await transition(db_session, job, "complete")
+    assert result.status == "complete"
+
+
+@pytest.mark.asyncio
+async def test_awaiting_gate0_illegal_to_running(db_session, sample_job):
+    job = await sample_job(status="awaiting_gate0", type="orchestrator")
+    with pytest.raises(IllegalTransition):
+        await transition(db_session, job, "running")

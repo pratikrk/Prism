@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,3 +27,11 @@ class Plan(Base, TimestampMixin):
     competitors: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     timeline_weeks: Mapped[int] = mapped_column(Integer, nullable=False)
     sprint_order: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    plan_status: Mapped[str] = mapped_column(String, nullable=False, default="draft")
+    parent_plan_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("plans.id", ondelete="SET NULL"),
+        nullable=True,
+    )

@@ -73,43 +73,109 @@ function BriefStatStrip({ brief }: { brief: FullBrief }) {
 /* ─── Summary tab ───────────────────────────────────────────────────────────── */
 function SummaryTab({ brief }: { brief: FullBrief }) {
   if (!brief.executive_summary.length) return <Empty label="No recommendations yet." />;
+
+  const topRec = brief.executive_summary[0];
+  const insightCards = brief.executive_summary.slice(0, 4);
+  const sorted = [...brief.executive_summary].sort((a, b) => a.priority - b.priority);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {brief.executive_summary.map((rec: Recommendation, i: number) => (
-        <div key={i} style={{
-          border: '1px solid var(--border)', borderRadius: 8,
-          background: 'var(--bg-card)', padding: '14px 16px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-            <span style={{
-              width: 22, height: 22, borderRadius: 5, flexShrink: 0,
-              background: 'var(--accent-dim, rgba(99,102,241,0.12))',
-              color: 'var(--accent)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 700,
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* AI synthesis box */}
+      <div style={{
+        border: '1px solid var(--accent)',
+        borderRadius: 8, padding: '14px 16px',
+        background: 'var(--bg-card)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <span style={{
+            width: 20, height: 20, borderRadius: 4,
+            background: 'var(--accent-dim, rgba(99,102,241,0.14))',
+            color: 'var(--accent)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 9,
+          }}>▲</span>
+          <span style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            Claude synthesis
+          </span>
+        </div>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--text)', lineHeight: 1.6 }}>
+          {topRec.rationale}
+        </p>
+      </div>
+
+      {/* 2×2 insight cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+        {insightCards.map((rec: Recommendation, i: number) => (
+          <div key={i} style={{
+            border: '1px solid var(--border)', borderRadius: 8,
+            background: 'var(--bg-card)', padding: '14px 16px',
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>
+              {rec.title}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-mut)', lineHeight: 1.5, marginBottom: 8 }}>
+              {rec.rationale}
+            </div>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              fontSize: 10, color: 'var(--ok)', fontWeight: 500,
+              padding: '2px 8px', borderRadius: 3, background: 'var(--ok-dim)',
             }}>
-              {rec.priority}
-            </span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
-                {rec.title}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-mut)', lineHeight: 1.5, marginBottom: 6 }}>
-                {rec.rationale}
-              </div>
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                fontSize: 11, color: 'var(--ok)', fontWeight: 500,
-              }}>
-                <svg width={10} height={10} viewBox="0 0 16 16" fill="none">
-                  <path d="M3 8l4 4 6-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                {rec.estimated_impact}
-              </div>
+              {rec.estimated_impact}
             </div>
           </div>
+        ))}
+      </div>
+
+      {/* Priority table */}
+      <div>
+        <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, fontWeight: 500 }}>
+          All recommendations
         </div>
-      ))}
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                {['#', 'Title', 'Rationale', 'Impact'].map((h) => (
+                  <th key={h} style={{
+                    padding: '7px 10px', textAlign: h === '#' || h === 'Impact' ? 'center' : 'left',
+                    fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase',
+                    letterSpacing: 0.8, fontWeight: 500,
+                  }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((rec: Recommendation, i: number) => (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '8px 10px', textAlign: 'center', width: 32 }}>
+                    <span style={{
+                      width: 22, height: 22, borderRadius: 5, display: 'inline-flex',
+                      alignItems: 'center', justifyContent: 'center',
+                      background: 'var(--accent-dim, rgba(99,102,241,0.12))',
+                      color: 'var(--accent)', fontSize: 11, fontWeight: 700,
+                    }}>
+                      {rec.priority}
+                    </span>
+                  </td>
+                  <td style={{ padding: '8px 10px', fontWeight: 500, color: 'var(--text)' }}>{rec.title}</td>
+                  <td style={{ padding: '8px 10px', color: 'var(--text-mut)', maxWidth: 320, lineHeight: 1.4 }}>{rec.rationale}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    <span style={{
+                      fontSize: 10, padding: '2px 8px', borderRadius: 20,
+                      background: 'var(--ok-dim)', color: 'var(--ok)', fontWeight: 500,
+                    }}>
+                      {rec.estimated_impact}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

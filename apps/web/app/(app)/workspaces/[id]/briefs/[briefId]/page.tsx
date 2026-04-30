@@ -746,36 +746,93 @@ function StatCard({ label, value, highlight }: { label: string; value: string; h
 function ActionPlanTab({ brief }: { brief: FullBrief }) {
   if (!brief.executive_summary.length) return <Empty label="No action items generated yet." />;
 
-  const sorted = [...brief.executive_summary].sort((a: Recommendation, b: Recommendation) => a.priority - b.priority);
+  const actionTypeColor = (t?: string): { bg: string; color: string } | null => {
+    if (t === 'Create')  return { bg: 'var(--accent-dim, rgba(99,102,241,0.12))', color: 'var(--accent)' };
+    if (t === 'Fix')     return { bg: 'rgba(245,165,36,0.12)', color: '#d97706' };
+    if (t === 'Publish') return { bg: 'var(--ok-dim)', color: 'var(--ok)' };
+    if (t === 'Monitor') return { bg: 'var(--running-dim)', color: 'var(--running)' };
+    return null;
+  };
+
+  const phaseLabel: Record<string, string> = {
+    bofu: 'Month 1–2 · BOFU quick wins',
+    mofu: 'Month 3–4 · MOFU scale',
+    tofu: 'Month 5–8 · TOFU authority',
+  };
+
+  const hasPhases = brief.executive_summary.some(r => r.phase);
+  const phases: Array<[string, Recommendation[]]> = hasPhases
+    ? (['bofu', 'mofu', 'tofu'] as const).map(p => [
+        p,
+        brief.executive_summary.filter(r => r.phase === p).sort((a, b) => a.priority - b.priority),
+      ]).filter(([, items]) => (items as Recommendation[]).length > 0) as Array<[string, Recommendation[]]>
+    : [['all', [...brief.executive_summary].sort((a, b) => a.priority - b.priority)]];
+
+  function PhaseSection({ phaseKey, items }: { phaseKey: string; items: Recommendation[] }) {
+    return (
+      <div>
+        {hasPhases && (
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+            {phaseLabel[phaseKey] ?? phaseKey}
+          </div>
+        )}
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)' }}>
+              {['Type', 'Title', 'Cluster', 'Vol/mo', 'KD'].map((h, i) => (
+                <th key={h} style={{
+                  padding: '7px 10px',
+                  textAlign: i >= 3 ? 'right' : i === 0 ? 'center' : 'left',
+                  fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase',
+                  letterSpacing: 0.8, fontWeight: 500,
+                }}>
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((rec: Recommendation, i: number) => {
+              const tc = actionTypeColor(rec.action_type);
+              return (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '8px 10px', textAlign: 'center', width: 70 }}>
+                    {tc ? (
+                      <span style={{
+                        fontSize: 10, padding: '2px 7px', borderRadius: 3, fontWeight: 500,
+                        background: tc.bg, color: tc.color,
+                        fontFamily: 'var(--font-mono, monospace)',
+                      }}>
+                        {rec.action_type}
+                      </span>
+                    ) : (
+                      <span style={{
+                        width: 22, height: 22, borderRadius: 5, display: 'inline-flex',
+                        alignItems: 'center', justifyContent: 'center',
+                        background: 'var(--accent-dim, rgba(99,102,241,0.12))',
+                        color: 'var(--accent)', fontSize: 11, fontWeight: 700,
+                      }}>
+                        {rec.priority}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ padding: '8px 10px', fontWeight: 500, color: 'var(--text)' }}>{rec.title}</td>
+                  <td style={{ padding: '8px 10px', color: 'var(--text-mut)', fontSize: 11 }}>—</td>
+                  <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-mut)' }}>—</td>
+                  <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-mut)' }}>—</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {sorted.map((rec: Recommendation, i: number) => (
-        <div key={i} style={{
-          display: 'grid', gridTemplateColumns: '24px 1fr auto',
-          gap: 12, alignItems: 'start',
-          border: '1px solid var(--border)', borderRadius: 7,
-          background: 'var(--bg-card)', padding: '12px 14px',
-        }}>
-          <span style={{
-            width: 24, height: 24, borderRadius: 5, flexShrink: 0,
-            background: 'var(--accent-dim, rgba(99,102,241,0.12))',
-            color: 'var(--accent)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 700,
-          }}>
-            {rec.priority}
-          </span>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>{rec.title}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-mut)', lineHeight: 1.4 }}>{rec.rationale}</div>
-          </div>
-          <div style={{
-            fontSize: 10, padding: '3px 8px', borderRadius: 20, whiteSpace: 'nowrap',
-            background: 'var(--ok-dim)', color: 'var(--ok)', fontWeight: 500,
-          }}>
-            {rec.estimated_impact}
-          </div>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {phases.map(([key, items]) => (
+        <PhaseSection key={key} phaseKey={key} items={items as Recommendation[]} />
       ))}
     </div>
   );

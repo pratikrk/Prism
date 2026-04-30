@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { JobBoard } from '@/components/job-board';
 import type { Job } from '@prism/types';
 
@@ -9,8 +9,64 @@ const base: Omit<Job, 'type' | 'status' | 'id'> = {
 };
 
 describe('JobBoard', () => {
-  it('renders 4 agent lanes and applies status from events', () => {
-    const onRetry = vi.fn();
+  it('renders 4 research agent lanes', () => {
+    render(
+      <JobBoard
+        initialJobs={[]}
+        events={[]}
+        workspaceId="w1"
+        briefId={null}
+        onRetry={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Keyword Research')).toBeInTheDocument();
+    expect(screen.getByText('Competitor Analysis')).toBeInTheDocument();
+    expect(screen.getByText('Content Audit')).toBeInTheDocument();
+    expect(screen.getByText('LLM Visibility')).toBeInTheDocument();
+  });
+
+  it('shows orchestrator row always', () => {
+    render(
+      <JobBoard
+        initialJobs={[]}
+        events={[]}
+        workspaceId="w1"
+        briefId={null}
+        onRetry={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Orchestrator')).toBeInTheDocument();
+  });
+
+  it('shows sprint header when sprintStatus provided', () => {
+    render(
+      <JobBoard
+        initialJobs={[]}
+        events={[]}
+        workspaceId="w1"
+        briefId={null}
+        sprintStatus="running"
+        onRetry={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/research sprint/i)).toBeInTheDocument();
+  });
+
+  it('shows synthesis row as complete when sprint is awaiting_gate1', () => {
+    render(
+      <JobBoard
+        initialJobs={[]}
+        events={[]}
+        workspaceId="w1"
+        briefId="b1"
+        sprintStatus="awaiting_gate1"
+        onRetry={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Synthesis')).toBeInTheDocument();
+  });
+
+  it('applies status from SSE events', () => {
     render(
       <JobBoard
         initialJobs={[]}
@@ -20,13 +76,12 @@ describe('JobBoard', () => {
             type: 'keyword', status: 'running', at: '2026-04-22T00:01:00Z', error: null,
           },
         ]}
-        onRetry={onRetry}
+        workspaceId="w1"
+        briefId={null}
+        onRetry={vi.fn()}
       />,
     );
-    expect(screen.getByText('Keyword')).toBeInTheDocument();
-    expect(screen.getByText('Competitor')).toBeInTheDocument();
-    expect(screen.getByText('Content audit')).toBeInTheDocument();
-    expect(screen.getByText('LLM visibility')).toBeInTheDocument();
+    expect(screen.getByText('Keyword Research')).toBeInTheDocument();
   });
 
   it('retry button calls onRetry for retryable failures', () => {
@@ -38,10 +93,13 @@ describe('JobBoard', () => {
           error: { kind: 'rate_limit', message: 'rl', retryable: true },
         }]}
         events={[]}
+        workspaceId="w1"
+        briefId={null}
         onRetry={onRetry}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+    const retryBtn = screen.getByRole('button', { name: /retry/i });
+    retryBtn.click();
     expect(onRetry).toHaveBeenCalledWith('k1');
   });
 });

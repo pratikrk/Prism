@@ -48,8 +48,11 @@ def orchestrator_task(self, job_id: str) -> dict:
             await session.commit()
 
             try:
+                goal = job.input.get("goal", "")
+                feedback = job.input.get("feedback")
+                full_goal = f"{goal}\n\nFeedback: {feedback}" if feedback else goal
                 plan = await OrchestratorAgent().run(
-                    OrchestratorInput(goal=job.input["goal"], domain=workspace.domain)
+                    OrchestratorInput(goal=full_goal, domain=workspace.domain)
                 )
             except Exception as exc:
                 err = classify(exc, provider="claude")
@@ -57,6 +60,13 @@ def orchestrator_task(self, job_id: str) -> dict:
                 await transition(session, job, "failed", error=err)
                 await session.commit()
                 return {"ok": False, "error": err.to_json()}
+
+            parent_plan_id_str = job.input.get("parent_plan_id")
+            version = 1
+            if parent_plan_id_str:
+                parent = await session.get(PlanModel, uuid.UUID(parent_plan_id_str))
+                if parent is not None:
+                    version = parent.version + 1
 
             plan_row = PlanModel(
                 job_id=job.id,
@@ -66,27 +76,18 @@ def orchestrator_task(self, job_id: str) -> dict:
                 competitors=plan.competitors,
                 timeline_weeks=plan.timeline_weeks,
                 sprint_order=plan.sprint_order,
+                version=version,
+                feedback=feedback,
+                plan_status="draft",
+                parent_plan_id=uuid.UUID(parent_plan_id_str) if parent_plan_id_str else None,
             )
             session.add(plan_row)
             await session.flush()
-
-            sprint = Job(
-                workspace_id=job.workspace_id,
-                parent_job_id=job.id,
-                type="sprint",
-                status="running",
-                input={"plan_id": str(plan_row.id)},
+            await transition(
+                session, job, "awaiting_gate0", result={"plan_id": str(plan_row.id)}
             )
-            session.add(sprint)
-            await session.flush()
-            await transition(session, job, "complete", result={"plan_id": str(plan_row.id)})
             await session.commit()
-
-            plan_id = str(plan_row.id)
-            sprint_id = str(sprint.id)
-
-        _dispatch_chord(plan_id, sprint_id)
-        return {"ok": True, "plan_id": plan_id, "sprint_job_id": sprint_id}
+            return {"ok": True, "plan_id": str(plan_row.id)}
 
     return _run(_body())
 

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.sentry import init_sentry
-from app.routes import health, jobs, webhooks, workspaces
+from app.routes import health, jobs, plans, webhooks, workspaces
 
 init_sentry()
 
@@ -21,4 +21,5 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(workspaces.router)
 app.include_router(jobs.router)
+app.include_router(plans.router)
 app.include_router(webhooks.router)

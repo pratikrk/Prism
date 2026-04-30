@@ -17,19 +17,17 @@ from celery.result import AsyncResult
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.competitor import CompetitorAgent, CompetitorInput
+from app.agents.content_audit import ContentAuditAgent, ContentAuditInput
 from app.agents.keyword import KeywordAgent, KeywordInput
+from app.agents.llm_visibility import LLMVisibilityAgent, LLMVisibilityInput
 from app.agents.orchestrator import OrchestratorAgent, OrchestratorInput, Plan
-from app.agents.stubs import (
-    CompetitorStub,
-    ContentAuditStub,
-    LLMVisibilityStub,
-    StubInput,
-)
+from app.agents.synthesis import SynthesisAgent, SynthesisInput
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.errors import classify
 from app.core.jobs import transition
-from app.models import Job, Plan as PlanModel, Workspace
+from app.models import Job, Plan as PlanModel, StrategyBrief, Workspace
 from app.workers.celery_app import celery_app
 
 
@@ -95,9 +93,9 @@ def orchestrator_task(self, job_id: str) -> dict:
 def _dispatch_chord(plan_id: str, sprint_job_id: str) -> AsyncResult:
     header = group(
         keyword_task.s(plan_id, sprint_job_id),
-        competitor_stub_task.s(plan_id, sprint_job_id),
-        content_audit_stub_task.s(plan_id, sprint_job_id),
-        llm_visibility_stub_task.s(plan_id, sprint_job_id),
+        competitor_task.s(plan_id, sprint_job_id),
+        content_audit_task.s(plan_id, sprint_job_id),
+        llm_visibility_task.s(plan_id, sprint_job_id),
     )
     callback = finalize_task.s(sprint_job_id)
     error_callback = finalize_error_task.s(sprint_job_id)
@@ -154,15 +152,23 @@ async def _keyword_runner(plan: Plan):
 
 
 async def _competitor_runner(plan: Plan):
-    return await CompetitorStub().run(StubInput(plan=plan))
+    return await CompetitorAgent().run(
+        CompetitorInput(domain=plan.domain, competitors=plan.competitors, intent=plan.intent)
+    )
 
 
 async def _content_audit_runner(plan: Plan):
-    return await ContentAuditStub().run(StubInput(plan=plan))
+    return await ContentAuditAgent().run(
+        ContentAuditInput(domain=plan.domain, intent=plan.intent)
+    )
 
 
 async def _llm_visibility_runner(plan: Plan):
-    return await LLMVisibilityStub().run(StubInput(plan=plan))
+    return await LLMVisibilityAgent().run(
+        LLMVisibilityInput(
+            domain=plan.domain, intent=plan.intent, competitors=plan.competitors
+        )
+    )
 
 
 @celery_app.task(bind=True, name="agents.keyword")
@@ -171,17 +177,17 @@ def keyword_task(self, plan_id: str, sprint_job_id: str) -> dict:
 
 
 @celery_app.task(bind=True, name="agents.competitor")
-def competitor_stub_task(self, plan_id: str, sprint_job_id: str) -> dict:
+def competitor_task(self, plan_id: str, sprint_job_id: str) -> dict:
     return _run(_child_body("competitor", _competitor_runner)(plan_id, sprint_job_id))
 
 
 @celery_app.task(bind=True, name="agents.content_audit")
-def content_audit_stub_task(self, plan_id: str, sprint_job_id: str) -> dict:
+def content_audit_task(self, plan_id: str, sprint_job_id: str) -> dict:
     return _run(_child_body("content_audit", _content_audit_runner)(plan_id, sprint_job_id))
 
 
 @celery_app.task(bind=True, name="agents.llm_visibility")
-def llm_visibility_stub_task(self, plan_id: str, sprint_job_id: str) -> dict:
+def llm_visibility_task(self, plan_id: str, sprint_job_id: str) -> dict:
     return _run(_child_body("llm_visibility", _llm_visibility_runner)(plan_id, sprint_job_id))
 
 
@@ -193,21 +199,85 @@ def finalize_task(child_results: list[dict], sprint_job_id: str) -> dict:
             if sprint is None or sprint.status != "running":
                 return {"ok": False, "reason": "sprint missing or not running"}
             all_ok = all(r.get("ok") for r in child_results)
-            status = "complete" if all_ok else "complete_with_errors"
-            await transition(
-                session,
-                sprint,
-                status,
-                result={"children": child_results, "errors": not all_ok},
-            )
+            if not all_ok:
+                await transition(
+                    session,
+                    sprint,
+                    "complete_with_errors",
+                    result={"children": child_results, "errors": True},
+                )
+                await session.commit()
+                return {"ok": False, "status": "complete_with_errors"}
+            # All children ok — fire synthesis, leave sprint running
             await session.commit()
-            return {"ok": True, "status": status}
+        synthesis_task.delay(sprint_job_id)
+        return {"ok": True, "status": "synthesis_dispatched"}
 
     try:
         return _run(_body())
     except Exception as exc:
         sentry_sdk.capture_exception(exc)
         return {"ok": False, "reason": f"finalize bug: {exc!r}"}
+
+
+@celery_app.task(name="agents.synthesis")
+def synthesis_task(sprint_job_id: str) -> dict:
+    async def _body() -> dict:
+        async with SessionLocal() as session:
+            sprint = await session.get(Job, uuid.UUID(sprint_job_id))
+            if sprint is None:
+                return {"ok": False, "reason": "sprint not found"}
+
+            plan_id_str = sprint.input.get("plan_id")
+            if not plan_id_str:
+                return {"ok": False, "reason": "sprint has no plan_id in input"}
+
+            plan_row = await session.get(PlanModel, uuid.UUID(plan_id_str))
+            if plan_row is None:
+                return {"ok": False, "reason": "plan not found"}
+
+            try:
+                child_results = await _get_child_results(session, sprint.id)
+                result = await SynthesisAgent().run(
+                    SynthesisInput(
+                        plan_id=plan_id_str,
+                        domain=plan_row.domain,
+                        intent=plan_row.intent,
+                        keyword_result=child_results.get("keyword", {}),
+                        competitor_result=child_results.get("competitor", {}),
+                        content_audit_result=child_results.get("content_audit", {}),
+                        llm_visibility_result=child_results.get("llm_visibility", {}),
+                    )
+                )
+            except Exception as exc:
+                err = classify(exc, provider="claude")
+                sentry_sdk.capture_exception(exc)
+                return {"ok": False, "error": err.to_json()}
+
+            brief = StrategyBrief(
+                workspace_id=sprint.workspace_id,
+                plan_id=uuid.UUID(plan_id_str),
+                sprint_job_id=sprint.id,
+                clusters=_to_json(result)["clusters"],
+                executive_summary=_to_json(result)["executive_summary"],
+                share_token=str(uuid.uuid4()),
+                status="draft",
+            )
+            session.add(brief)
+            await session.flush()
+            brief_id = str(brief.id)
+
+            await transition(
+                session, sprint, "awaiting_gate1", result={"brief_id": brief_id}
+            )
+            await session.commit()
+            return {"ok": True, "brief_id": brief_id}
+
+    try:
+        return _run(_body())
+    except Exception as exc:
+        sentry_sdk.capture_exception(exc)
+        return {"ok": False, "reason": f"synthesis bug: {exc!r}"}
 
 
 @celery_app.task(name="agents.finalize_error")
@@ -231,6 +301,19 @@ def finalize_error_task(request_context: Any, sprint_job_id: str) -> dict:
     except Exception as exc:
         sentry_sdk.capture_exception(exc)
         return {"ok": False, "reason": "finalize_error bug"}
+
+
+async def _get_child_results(session: AsyncSession, sprint_id: uuid.UUID) -> dict[str, dict]:
+    """Load each child job's result dict, keyed by job type."""
+    result = await session.execute(
+        select(Job).where(Job.parent_job_id == sprint_id)
+    )
+    children = result.scalars().all()
+    return {
+        child.type: child.result or {}
+        for child in children
+        if child.status == "complete"
+    }
 
 
 async def _load_job(session: AsyncSession, job_id: str) -> Job:

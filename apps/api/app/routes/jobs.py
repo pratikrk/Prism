@@ -15,10 +15,10 @@ from app.core.db import get_session
 from app.core.events import listen_job_events
 from app.models import Job, Workspace
 from app.workers.tasks import (
-    competitor_stub_task,
-    content_audit_stub_task,
+    competitor_task,
+    content_audit_task,
     keyword_task,
-    llm_visibility_stub_task,
+    llm_visibility_task,
     orchestrator_task,
 )
 
@@ -134,9 +134,9 @@ async def stream_events(
 
 _RETRY_MAP = {
     "keyword": keyword_task,
-    "competitor": competitor_stub_task,
-    "content_audit": content_audit_stub_task,
-    "llm_visibility": llm_visibility_stub_task,
+    "competitor": competitor_task,
+    "content_audit": content_audit_task,
+    "llm_visibility": llm_visibility_task,
 }
 
 

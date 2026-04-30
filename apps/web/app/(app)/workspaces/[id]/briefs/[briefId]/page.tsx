@@ -182,63 +182,104 @@ function SummaryTab({ brief }: { brief: FullBrief }) {
 
 /* ─── Clusters tab ──────────────────────────────────────────────────────────── */
 function ClustersTab({ brief }: { brief: FullBrief }) {
+  const [expanded, setExpanded] = useState<number | null>(null);
   if (!brief.clusters.length) return <Empty label="No content clusters generated yet." />;
+
+  const priorityBorderColor = (p: number) =>
+    p === 0 ? 'var(--ok)' : p === 1 ? '#d97706' : 'var(--running)';
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {brief.clusters.map((cluster: ContentCluster, i: number) => (
-        <div key={i} style={{
-          border: '1px solid var(--border)', borderRadius: 8,
-          background: 'var(--bg-card)', padding: '14px 16px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{
-              fontSize: 10, padding: '2px 8px', borderRadius: 20,
-              background: 'var(--accent-dim, rgba(99,102,241,0.12))',
-              color: 'var(--accent)', fontWeight: 600,
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {brief.clusters.map((cluster: ContentCluster, i: number) => {
+        const isExp = expanded === i;
+        return (
+          <div
+            key={i}
+            onClick={() => setExpanded(isExp ? null : i)}
+            style={{
+              border: '1px solid var(--border)', borderRadius: 8,
+              background: 'var(--bg-card)',
+              borderLeft: `3px solid ${priorityBorderColor(cluster.priority)}`,
+              cursor: 'pointer',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Collapsed row */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '12px 14px',
             }}>
-              P{cluster.priority}
-            </span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{cluster.name}</span>
-          </div>
-          <div className="mono" style={{ fontSize: 11, color: 'var(--accent)', marginBottom: 8 }}>
-            Hub: {cluster.hub_page}
-          </div>
-          {cluster.spoke_pages.length > 0 && (
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                Spoke pages
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {cluster.spoke_pages.map((p, j) => (
-                  <span key={j} className="mono" style={{
-                    fontSize: 10, padding: '2px 6px', borderRadius: 4,
-                    background: 'var(--bg-hover)', color: 'var(--text-mut)',
-                  }}>
-                    {p}
-                  </span>
-                ))}
-              </div>
+              <span style={{
+                fontSize: 10, padding: '2px 8px', borderRadius: 20, flexShrink: 0,
+                background: 'var(--accent-dim, rgba(99,102,241,0.12))',
+                color: 'var(--accent)', fontWeight: 600,
+              }}>
+                P{cluster.priority}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: 1 }}>
+                {cluster.name}
+              </span>
+              <span className="mono" style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                {cluster.target_keywords.length} kws
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                {cluster.spoke_pages.length + 1} pages
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', transform: isExp ? 'rotate(90deg)' : undefined, transition: 'transform 0.15s', marginLeft: 4 }}>›</span>
             </div>
-          )}
-          {cluster.target_keywords.length > 0 && (
-            <div>
-              <div style={{ fontSize: 10, color: 'var(--text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                Target keywords
+
+            {/* Expanded content */}
+            {isExp && (
+              <div style={{ padding: '0 14px 14px', borderTop: '1px solid var(--border)' }}>
+                {/* Hub page */}
+                <div style={{
+                  borderLeft: '3px solid var(--accent)',
+                  padding: '8px 12px', marginTop: 12, marginBottom: 8,
+                  background: 'var(--accent-dim, rgba(99,102,241,0.06))',
+                  borderRadius: '0 6px 6px 0',
+                }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 3 }}>Hub page</div>
+                  <div className="mono" style={{ fontSize: 11, color: 'var(--accent)' }}>{cluster.hub_page}</div>
+                </div>
+                {/* Spoke pages */}
+                {cluster.spoke_pages.length > 0 && (
+                  <div style={{ paddingLeft: 16 }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>Spoke pages</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {cluster.spoke_pages.map((p, j) => (
+                        <div key={j} className="mono" style={{
+                          fontSize: 11, padding: '4px 8px', borderRadius: 4,
+                          background: 'var(--bg-hover)', color: 'var(--text-mut)',
+                        }}>
+                          {p}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Target keywords */}
+                {cluster.target_keywords.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                      Target keywords
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {cluster.target_keywords.map((kw, j) => (
+                        <span key={j} style={{
+                          fontSize: 10, padding: '2px 7px', borderRadius: 4,
+                          border: '1px solid var(--border)', color: 'var(--text-mut)',
+                        }}>
+                          {kw}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {cluster.target_keywords.map((kw, j) => (
-                  <span key={j} style={{
-                    fontSize: 10, padding: '2px 7px', borderRadius: 4,
-                    border: '1px solid var(--border)', color: 'var(--text-mut)',
-                  }}>
-                    {kw}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      ))}
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

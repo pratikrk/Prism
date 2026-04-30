@@ -27,95 +27,106 @@ function StrategyBriefCard({
   const isDraft = item.brief_status === 'draft';
   const clusterCount = item.clusters.length;
   const recCount = item.executive_summary.length;
+  const topRec = item.executive_summary[0];
+
+  const stats: Array<{ label: string; value: number | string }> = [
+    { label: 'clusters', value: clusterCount },
+    { label: 'content pieces', value: recCount },
+    { label: 'keyword gaps', value: '—' },
+    { label: 'LLM mentions', value: '—' },
+    { label: 'est. traffic/mo', value: '—' },
+    { label: 'timeline', value: '—' },
+  ];
 
   return (
-    <div style={{
-      border: '1px solid var(--border)',
-      borderRadius: 10,
-      background: 'var(--bg-card)',
-      padding: '16px 18px',
-    }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: 6, flexShrink: 0,
-          background: isDraft ? 'var(--accent-dim, rgba(99,102,241,0.12))' : 'var(--ok-dim)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <svg width={13} height={13} viewBox="0 0 16 16" fill="none" style={{ color: isDraft ? 'var(--accent)' : 'var(--ok)' }}>
-            {isDraft ? (
-              <path d="M2 3h12v2H2zM2 7h8v2H2zM2 11h6v2H2z" fill="currentColor" opacity="0.7"/>
-            ) : (
-              <path d="M3 8l4 4 6-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-            )}
-          </svg>
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Strategy Brief</div>
-          <div style={{ fontSize: 11, color: 'var(--text-mut)', marginTop: 1 }}>
-            {isDraft ? 'Ready for review' : 'Approved'}
-          </div>
-        </div>
-        <span style={{
-          fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 20,
-          background: isDraft ? 'var(--accent-dim, rgba(99,102,241,0.12))' : 'var(--ok-dim)',
-          color: isDraft ? 'var(--accent)' : 'var(--ok)',
-          textTransform: 'uppercase', letterSpacing: 0.6,
-        }}>
-          {isDraft ? 'Draft' : 'Approved'}
-        </span>
-      </div>
-
-      {/* Stats */}
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+      {/* Avatar */}
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: 8, marginBottom: 14,
+        width: 24, height: 24, borderRadius: 6, flexShrink: 0, marginTop: 2,
+        background: 'var(--accent-dim, rgba(99,102,241,0.12))',
+        color: 'var(--accent)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <StatPill label="Content clusters" value={clusterCount} />
-        <StatPill label="Recommendations" value={recCount} />
+        <svg width={10} height={10} viewBox="0 0 16 16" fill="none">
+          <path d="M8 2L14 14H2L8 2Z" fill="currentColor" opacity="0.8"/>
+        </svg>
       </div>
 
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 8 }}>
-        <Link
-          href={`/workspaces/${workspaceId}/briefs/${item.brief_id}`}
-          style={{
-            flex: 1, padding: '8px 12px', borderRadius: 6, textAlign: 'center',
-            background: 'var(--accent)', color: '#fff',
-            fontSize: 12, fontWeight: 500, textDecoration: 'none',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-          }}
-        >
-          Review Strategy Brief
-          <svg width={10} height={10} viewBox="0 0 16 16" fill="none">
-            <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </Link>
-        {item.share_token && (
-          <button
-            onClick={() => navigator.clipboard.writeText(`${window.location.origin}/share/${item.share_token}`)}
+      {/* Card */}
+      <div style={{
+        flex: 1,
+        border: '1px solid var(--accent)',
+        borderRadius: '2px 10px 10px 10px',
+        background: 'var(--bg-card)',
+        overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+              Strategy Brief ready
+            </span>
+            <span style={{
+              fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 3,
+              background: isDraft ? 'var(--accent-dim, rgba(99,102,241,0.14))' : 'var(--ok-dim)',
+              color: isDraft ? 'var(--accent)' : 'var(--ok)',
+              fontFamily: 'var(--font-mono, monospace)',
+            }}>
+              {isDraft ? 'Gate-1 · awaiting review' : 'approved'}
+            </span>
+          </div>
+          {topRec && (
+            <div style={{ fontSize: 12, color: 'var(--text-mut)', lineHeight: 1.6 }}>
+              {topRec.rationale}
+            </div>
+          )}
+        </div>
+
+        {/* Stats grid */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 8, padding: '12px 16px',
+          background: 'var(--bg-elev)',
+          borderBottom: '1px solid var(--border)',
+        }}>
+          {stats.map(({ label, value }) => (
+            <div key={label} style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.3px' }}>
+                {value}
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Actions */}
+        <div style={{ padding: '12px 16px', display: 'flex', gap: 8 }}>
+          <Link
+            href={`/workspaces/${workspaceId}/briefs/${item.brief_id}`}
             style={{
-              padding: '8px 12px', borderRadius: 6,
-              background: 'var(--bg-hover)', color: 'var(--text)',
-              border: '1px solid var(--border)', cursor: 'pointer',
-              fontSize: 12, fontWeight: 500,
+              flex: 1, padding: '8px 14px', borderRadius: 6, textAlign: 'center',
+              background: 'var(--accent)', color: '#fff',
+              fontSize: 12, fontWeight: 500, textDecoration: 'none',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
             }}
           >
-            Share link
-          </button>
-        )}
+            ✦ {isDraft ? 'Review Strategy Brief' : 'View Strategy Brief'} →
+          </Link>
+          {item.share_token && (
+            <button
+              onClick={() => navigator.clipboard.writeText(`${window.location.origin}/share/${item.share_token}`)}
+              style={{
+                padding: '8px 12px', borderRadius: 6,
+                background: 'transparent', color: 'var(--text-mut)',
+                border: '1px solid var(--border)', cursor: 'pointer',
+                fontSize: 12, fontWeight: 500,
+              }}
+            >
+              Share link
+            </button>
+          )}
+        </div>
       </div>
-    </div>
-  );
-}
-
-function StatPill({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div style={{
-      background: 'var(--bg-hover)', borderRadius: 6, padding: '8px 10px',
-    }}>
-      <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)' }}>{value}</div>
-      <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 1 }}>{label}</div>
     </div>
   );
 }

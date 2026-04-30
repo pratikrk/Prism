@@ -2,12 +2,11 @@
 
 import { useAuth } from '@clerk/nextjs';
 import { useParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
-import useSWR, { mutate } from 'swr';
-import { listWorkspaceJobs, retryJob, submitJob } from '@/lib/api';
-import { useJobEvents } from '@/lib/sse';
+import { useEffect, useState } from 'react';
+import useSWR from 'swr';
+import { getThread, submitJob } from '@/lib/api';
+import { ConversationThread } from '@/components/conversation-thread';
 import { GoalInput } from '@/components/goal-input';
-import { JobBoard } from '@/components/job-board';
 
 function useToken() {
   const { getToken } = useAuth();
@@ -25,41 +24,31 @@ export default function WorkspaceDetailPage() {
   const { getToken } = useAuth();
   const token = useToken();
 
-  const swrKey = `jobs:${id}`;
-  const { data: jobs = [] } = useSWR(swrKey, async () => {
-    const tok = await getToken();
-    if (!tok) return [];
-    return listWorkspaceJobs(tok, id);
-  }, { refreshInterval: 4000 });
-
-  const rootJob = useMemo(
-    () => jobs.find((j) => j.type === 'orchestrator' &&
-      (j.status === 'pending' || j.status === 'running')) ??
-      jobs.find((j) => j.type === 'orchestrator'),
-    [jobs],
+  const swrKey = token ? `thread:${id}` : null;
+  const { data: items = [], mutate } = useSWR(
+    swrKey,
+    () => getThread(token!, id),
+    { refreshInterval: 5000 },
   );
-
-  const events = useJobEvents(rootJob?.id ?? null, token);
 
   async function handleSubmit(goal: string) {
     const tok = await getToken();
     if (!tok) return;
     await submitJob(tok, id, { goal });
-    mutate(swrKey);
+    mutate();
   }
 
-  async function handleRetry(jobId: string) {
-    const tok = await getToken();
-    if (!tok) return;
-    await retryJob(tok, jobId);
-    mutate(swrKey);
-  }
-
-  const inFlight = !!rootJob && (rootJob.status === 'pending' || rootJob.status === 'running');
   return (
-    <div className="space-y-6">
-      <GoalInput onSubmit={handleSubmit} disabled={inFlight} />
-      <JobBoard initialJobs={jobs} events={events} onRetry={handleRetry} />
+    <div className="flex flex-col h-[calc(100vh-8rem)]">
+      <ConversationThread
+        items={items}
+        token={token ?? ''}
+        workspaceId={id}
+        onRefetch={() => mutate()}
+      />
+      <div className="border-t pt-4 mt-4">
+        <GoalInput onSubmit={handleSubmit} />
+      </div>
     </div>
   );
 }

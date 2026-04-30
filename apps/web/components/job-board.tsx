@@ -17,6 +17,7 @@ const LABELS: Record<JobType, string> = {
 const STATUS_COLORS: Record<JobStatus, string> = {
   pending: 'bg-muted text-muted-foreground',
   running: 'bg-yellow-500/20 text-yellow-900 dark:text-yellow-200',
+  awaiting_gate0: 'bg-blue-500/20 text-blue-900 dark:text-blue-200',
   complete: 'bg-green-500/20 text-green-900 dark:text-green-200',
   complete_with_errors: 'bg-amber-500/20 text-amber-900 dark:text-amber-200',
   failed: 'bg-red-500/20 text-red-900 dark:text-red-200',

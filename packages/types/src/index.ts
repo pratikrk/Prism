@@ -10,9 +10,12 @@ export type JobType =
 export type JobStatus =
   | 'pending'
   | 'running'
+  | 'awaiting_gate0'
   | 'complete'
   | 'complete_with_errors'
   | 'failed';
+
+export type PlanStatus = 'draft' | 'approved' | 'superseded';
 
 export type ErrorKind =
   | 'rate_limit'
@@ -45,6 +48,7 @@ export interface Job {
 }
 
 export interface Plan {
+  id: string;
   job_id: string;
   workspace_id: string;
   intent: string;
@@ -52,6 +56,10 @@ export interface Plan {
   competitors: string[];
   timeline_weeks: number;
   sprint_order: JobType[];
+  version: number;
+  feedback: string | null;
+  plan_status: PlanStatus;
+  parent_plan_id: string | null;
 }
 
 export interface Workspace {
@@ -70,4 +78,39 @@ export interface AgentStatusEvent {
   status: JobStatus;
   at: string;
   error: JobError | null;
+}
+
+export type ThreadItem =
+  | ThreadGoalItem
+  | ThreadPlanItem
+  | ThreadJobsItem
+  | ThreadErrorItem;
+
+export interface ThreadGoalItem {
+  type: 'goal';
+  job_id: string;
+  goal: string;
+  feedback: string | null;
+  job_status: JobStatus;
+  created_at: string;
+}
+
+export interface ThreadPlanItem {
+  type: 'plan';
+  plan: Plan;
+  job_status: JobStatus;
+}
+
+export interface ThreadJobsItem {
+  type: 'jobs';
+  sprint_job_id: string;
+  sprint_status: JobStatus;
+  children: Job[];
+}
+
+export interface ThreadErrorItem {
+  type: 'error';
+  job_id: string;
+  error: JobError;
+  created_at: string;
 }

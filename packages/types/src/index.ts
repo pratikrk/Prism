@@ -5,17 +5,20 @@ export type JobType =
   | 'keyword'
   | 'competitor'
   | 'content_audit'
-  | 'llm_visibility';
+  | 'llm_visibility'
+  | 'synthesis';
 
 export type JobStatus =
   | 'pending'
   | 'running'
   | 'awaiting_gate0'
+  | 'awaiting_gate1'
   | 'complete'
   | 'complete_with_errors'
   | 'failed';
 
 export type PlanStatus = 'draft' | 'approved' | 'superseded';
+export type BriefStatus = 'draft' | 'approved';
 
 export type ErrorKind =
   | 'rate_limit'
@@ -80,11 +83,94 @@ export interface AgentStatusEvent {
   error: JobError | null;
 }
 
-export type ThreadItem =
-  | ThreadGoalItem
-  | ThreadPlanItem
-  | ThreadJobsItem
-  | ThreadErrorItem;
+// ── Research result types ─────────────────────────────────────────────────
+
+export interface KeywordRow {
+  term: string;
+  volume: number | null;
+  difficulty: number | null;
+  priority_score: number;
+}
+
+export interface KeywordResult {
+  keywords: KeywordRow[];
+}
+
+export interface GapKeyword {
+  term: string;
+  volume: number;
+  kd: number;
+  competitor: string;
+  competitor_position: number;
+}
+
+export interface CompetitorSummary {
+  domain: string;
+  estimated_traffic: number;
+  ranking_keywords: number;
+  overlap_keywords: number;
+}
+
+export interface CompetitorResult {
+  competitors: CompetitorSummary[];
+  gap_keywords: GapKeyword[];
+  quick_wins: GapKeyword[];
+}
+
+export interface AuditPage {
+  url: string;
+  title: string | null;
+  top_keyword: string | null;
+  position: number | null;
+}
+
+export interface ContentAuditResult {
+  pages_found: number;
+  ranking_pages: AuditPage[];
+  missing_topics: string[];
+  summary: string;
+}
+
+export interface LLMVisibilityResult {
+  queries_tested: string[];
+  brand_mentioned: boolean;
+  mention_count: number;
+  competitor_mentions: Record<string, number>;
+  sample_response: string;
+  note: string;
+}
+
+// ── Strategy Brief ────────────────────────────────────────────────────────
+
+export interface ContentCluster {
+  name: string;
+  hub_page: string;
+  spoke_pages: string[];
+  target_keywords: string[];
+  priority: number;
+}
+
+export interface Recommendation {
+  title: string;
+  rationale: string;
+  estimated_impact: string;
+  priority: number;
+}
+
+export interface StrategyBrief {
+  id: string;
+  workspace_id: string;
+  plan_id: string;
+  sprint_job_id: string;
+  clusters: ContentCluster[];
+  executive_summary: Recommendation[];
+  share_token: string | null;
+  status: BriefStatus;
+  approved_at: string | null;
+  created_at: string;
+}
+
+// ── Thread items ──────────────────────────────────────────────────────────
 
 export interface ThreadGoalItem {
   type: 'goal';
@@ -101,6 +187,25 @@ export interface ThreadPlanItem {
   job_status: JobStatus;
 }
 
+export interface ThreadResearchSectionItem {
+  type: 'section';
+  section_type: 'keyword' | 'competitor' | 'content_audit' | 'llm_visibility';
+  job_id: string;
+  job_status: JobStatus;
+  result: KeywordResult | CompetitorResult | ContentAuditResult | LLMVisibilityResult | null;
+}
+
+export interface ThreadBriefItem {
+  type: 'brief';
+  brief_id: string;
+  sprint_job_id: string;
+  job_status: JobStatus;
+  clusters: ContentCluster[];
+  executive_summary: Recommendation[];
+  share_token: string | null;
+  brief_status: BriefStatus;
+}
+
 export interface ThreadJobsItem {
   type: 'jobs';
   sprint_job_id: string;
@@ -114,3 +219,11 @@ export interface ThreadErrorItem {
   error: JobError;
   created_at: string;
 }
+
+export type ThreadItem =
+  | ThreadGoalItem
+  | ThreadPlanItem
+  | ThreadResearchSectionItem
+  | ThreadBriefItem
+  | ThreadJobsItem
+  | ThreadErrorItem;

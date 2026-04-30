@@ -90,6 +90,10 @@ export interface KeywordRow {
   volume: number | null;
   difficulty: number | null;
   priority_score: number;
+  cpc?: number;
+  intent?: 'TOF' | 'MOF' | 'BOF';
+  trend?: number[];
+  top_competitor?: string;
 }
 
 export interface KeywordResult {
@@ -138,6 +142,17 @@ export interface LLMVisibilityResult {
   competitor_mentions: Record<string, number>;
   sample_response: string;
   note: string;
+  llm_breakdown?: Array<{
+    name: string;
+    citation_rate: number;
+    cited: number;
+    total: number;
+  }>;
+  geo_recommendations?: Array<{
+    action: string;
+    impact_pct: number;
+    effort: 'Low' | 'Med' | 'High';
+  }>;
 }
 
 // ── Strategy Brief ────────────────────────────────────────────────────────
@@ -155,6 +170,8 @@ export interface Recommendation {
   rationale: string;
   estimated_impact: string;
   priority: number;
+  phase?: 'bofu' | 'mofu' | 'tofu';
+  action_type?: 'Create' | 'Fix' | 'Publish' | 'Monitor';
 }
 
 export interface StrategyBrief {
@@ -168,6 +185,13 @@ export interface StrategyBrief {
   status: BriefStatus;
   approved_at: string | null;
   created_at: string;
+}
+
+export interface FullBrief extends StrategyBrief {
+  keyword_result: KeywordResult | null;
+  competitor_result: CompetitorResult | null;
+  content_audit_result: ContentAuditResult | null;
+  llm_visibility_result: LLMVisibilityResult | null;
 }
 
 // ── Thread items ──────────────────────────────────────────────────────────

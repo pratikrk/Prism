@@ -26,12 +26,34 @@ class DataForSEOError(RuntimeError):
     pass
 
 
+def _competition_str(v: object) -> str | None:
+    """Normalise DataForSEO competition field.
+
+    The /keywords_for_keywords endpoint returns 'HIGH'/'MEDIUM'/'LOW'.
+    Some endpoint variants return a 0–1 float; we stringify it so the
+    model stays a plain str | None.
+    """
+    if v is None:
+        return None
+    if isinstance(v, str):
+        return v
+    try:
+        return str(v)
+    except Exception:
+        return None
+
+
 class KeywordRow(pydantic.BaseModel):
     keyword: str
     search_volume: int | None = None
     keyword_difficulty: int | None = None
     competition: str | None = None        # 'HIGH' | 'MEDIUM' | 'LOW' from Google Ads
     competition_index: int | None = None  # 0–100 numeric equivalent
+
+    @pydantic.field_validator("competition", mode="before")
+    @classmethod
+    def _normalise_competition(cls, v: object) -> str | None:
+        return _competition_str(v)
 
 
 class DataForSEOClient:

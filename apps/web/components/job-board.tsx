@@ -12,6 +12,7 @@ const LABELS: Record<JobType, string> = {
   competitor:     'Competitor',
   content_audit:  'Content audit',
   llm_visibility: 'LLM visibility',
+  synthesis:      'Synthesis',
 };
 
 const PROVIDERS: Partial<Record<JobType, string>> = {

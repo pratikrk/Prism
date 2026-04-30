@@ -81,6 +81,39 @@ class DataForSEOClient:
             raise DataForSEOError("DataForSEO returned no keyword rows (treated as external error)")
         return [KeywordRow.model_validate(r) for r in rows]
 
+    async def domain_competitors(self, domain: str) -> list[dict]:
+        """Return competitor domains and their keyword overlap with `domain`."""
+        payload = [{"target": domain, "language_code": "en", "location_code": 2840}]
+        data = await self._post(
+            "/v3/dataforseo_labs/google/competitors_domain/live", payload
+        )
+        return _extract_result(data)
+
+    async def domain_rank_overview(self, domain: str) -> dict:
+        """Return organic traffic metrics for `domain`."""
+        payload = [{"target": domain, "language_code": "en", "location_code": 2840}]
+        data = await self._post(
+            "/v3/dataforseo_labs/google/domain_rank_overview/live", payload
+        )
+        rows = _extract_result(data)
+        return rows[0] if rows else {}
+
+    async def ranked_keywords(self, domain: str, limit: int = 100) -> list[dict]:
+        """Return keywords `domain` ranks for, with URLs and positions."""
+        payload = [
+            {
+                "target": domain,
+                "language_code": "en",
+                "location_code": 2840,
+                "limit": limit,
+                "filters": ["ranked_serp_element.serp_item.rank_group", "<=", 20],
+            }
+        ]
+        data = await self._post(
+            "/v3/dataforseo_labs/google/ranked_keywords/live", payload
+        )
+        return _extract_result(data)
+
     async def _post(self, path: str, payload: Any) -> dict:
         cache_key = _cache_key(path, payload)
         if self._redis is not None:

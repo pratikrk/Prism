@@ -13,6 +13,7 @@ from typing import Any
 
 import sentry_sdk
 from celery import chord, group
+from celery.exceptions import SoftTimeLimitExceeded
 from celery.result import AsyncResult
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +33,14 @@ from app.workers.celery_app import celery_app
 
 
 def _run(coro):
-    return asyncio.run(coro)
+    async def _wrapped():
+        # Each asyncio.run() creates a new event loop, so pool connections from the
+        # previous run are stale. Dispose without closing so new connections are made
+        # fresh in this event loop.
+        from app.core.db import _engine
+        await _engine.dispose(close=False)
+        return await coro
+    return asyncio.run(_wrapped())
 
 
 @celery_app.task(bind=True, name="agents.orchestrator")
@@ -210,7 +218,11 @@ def finalize_task(child_results: list[dict], sprint_job_id: str) -> dict:
                 return {"ok": False, "status": "complete_with_errors"}
             # All children ok — fire synthesis, leave sprint running
             await session.commit()
-        synthesis_task.delay(sprint_job_id)
+        # link_error ensures the sprint is marked complete_with_errors even on hard kill
+        synthesis_task.apply_async(
+            args=[sprint_job_id],
+            link_error=[finalize_error_task.s(sprint_job_id)],
+        )
         return {"ok": True, "status": "synthesis_dispatched"}
 
     try:
@@ -220,7 +232,7 @@ def finalize_task(child_results: list[dict], sprint_job_id: str) -> dict:
         return {"ok": False, "reason": f"finalize bug: {exc!r}"}
 
 
-@celery_app.task(name="agents.synthesis")
+@celery_app.task(name="agents.synthesis", soft_time_limit=240, time_limit=300)
 def synthesis_task(sprint_job_id: str) -> dict:
     async def _body() -> dict:
         async with SessionLocal() as session:
@@ -249,6 +261,14 @@ def synthesis_task(sprint_job_id: str) -> dict:
                         llm_visibility_result=child_results.get("llm_visibility", {}),
                     )
                 )
+            except SoftTimeLimitExceeded:
+                # Soft limit fired — we can still write to the DB before hard kill
+                await transition(
+                    session, sprint, "complete_with_errors",
+                    result={"error": "synthesis_timeout"},
+                )
+                await session.commit()
+                return {"ok": False, "reason": "synthesis_timeout"}
             except Exception as exc:
                 err = classify(exc, provider="claude")
                 sentry_sdk.capture_exception(exc)
@@ -281,7 +301,14 @@ def synthesis_task(sprint_job_id: str) -> dict:
 
 
 @celery_app.task(name="agents.finalize_error")
-def finalize_error_task(request_context: Any, sprint_job_id: str) -> dict:
+def finalize_error_task(*args: Any) -> dict:
+    # Celery errback arg layouts differ by trigger:
+    #   body failure:   (chord_task_id, sprint_job_id)
+    #   header failure: (request, exc, traceback, sprint_job_id)  [task_allow_error_cb_on_chord_header=True]
+    # sprint_job_id is always the last positional arg (from .s(sprint_job_id)).
+    sprint_job_id = str(args[-1])
+    request_context = args[0]
+
     async def _body() -> dict:
         async with SessionLocal() as session:
             sprint = await session.get(Job, uuid.UUID(sprint_job_id))

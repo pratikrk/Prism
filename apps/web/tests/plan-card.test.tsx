@@ -16,6 +16,8 @@ const basePlan: Plan = {
   feedback: null,
   plan_status: 'draft',
   parent_plan_id: null,
+  traffic_target: null,
+  feasibility_note: null,
 };
 
 describe('PlanCard', () => {

@@ -87,6 +87,7 @@ def orchestrator_task(self, job_id: str) -> dict:
                 plan_status="draft",
                 parent_plan_id=uuid.UUID(parent_plan_id_str) if parent_plan_id_str else None,
                 traffic_target=plan.traffic_target,
+                feasibility_note=plan.feasibility_note,
             )
             session.add(plan_row)
             await session.flush()

@@ -17,6 +17,7 @@ const TABS = [
   { slug: 'keywords',   label: 'Keywords',       icon: '⊞' },
   { slug: 'clusters',   label: 'Clusters',       icon: '⊟' },
   { slug: 'competitor', label: 'Competitor Gap',  icon: '⑂' },
+  { slug: 'content',    label: 'Content Audit',  icon: '◧' },
   { slug: 'llm',        label: 'LLM Visibility',  icon: '◉' },
   { slug: 'action',     label: 'Action Plan',    icon: '⚡' },
 ] as const;
@@ -41,11 +42,9 @@ function BriefStatStrip({ brief }: { brief: FullBrief }) {
     { label: 'KEYWORDS',    value: brief.keyword_result?.keywords.length ?? '—' },
     { label: 'CLUSTERS',    value: brief.clusters.length },
     { label: 'GAP TERMS',   value: brief.competitor_result?.gap_keywords.length ?? '—' },
-    { label: 'CONTENT',     value: brief.executive_summary.length },
+    { label: 'CONTENT GAPS', value: brief.content_audit_result?.missing_topics.length ?? '—' },
     { label: 'LLM MENTIONS', value: brief.llm_visibility_result?.mention_count ?? '—' },
-    { label: 'TRAFFIC EST', value: brief.competitor_result?.competitors[0]?.estimated_traffic
-        ? `${Math.round(brief.competitor_result.competitors[0].estimated_traffic / 1000)}k`
-        : '—' },
+    { label: 'ACTIONS',     value: brief.executive_summary.length },
   ];
   return (
     <div style={{
@@ -334,7 +333,7 @@ function KeywordsTab({ brief }: { brief: FullBrief }) {
 
   const filtered = allKws
     .filter(k => search === '' || k.term.toLowerCase().includes(search.toLowerCase()))
-    .filter(k => intent === 'All' || k.intent === intent)
+    .filter(k => intent === 'All' || k.funnel_stage === intent)
     .sort((a, b) => {
       const mul = sort.dir === 'desc' ? -1 : 1;
       const va = sort.field === 'volume' ? (a.volume ?? 0)
@@ -436,7 +435,7 @@ function KeywordsTab({ brief }: { brief: FullBrief }) {
           </thead>
           <tbody>
             {filtered.map((row: KeywordRow, i: number) => {
-              const ic = row.intent ? intentColors[row.intent] : null;
+              const ic = row.funnel_stage ? intentColors[row.funnel_stage] : null;
               const isExp = expanded === row.term;
               return (
                 <React.Fragment key={row.term}>
@@ -465,7 +464,7 @@ function KeywordsTab({ brief }: { brief: FullBrief }) {
                           background: ic.bg, color: ic.color,
                           fontFamily: 'var(--font-mono, monospace)',
                         }}>
-                          {row.intent}
+                          {row.funnel_stage}
                         </span>
                       ) : '—'}
                     </td>
@@ -505,7 +504,7 @@ function KeywordsTab({ brief }: { brief: FullBrief }) {
                           <div>
                             <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 4 }}>Content type</div>
                             <div style={{ fontSize: 11, color: 'var(--text)' }}>
-                              {row.intent === 'BOF' ? 'Landing page' : row.intent === 'MOF' ? 'Comparison guide' : 'Informational article'}
+                              {row.funnel_stage === 'BOF' ? 'Landing page' : row.funnel_stage === 'MOF' ? 'Comparison guide' : 'Informational article'}
                             </div>
                           </div>
                         </div>
@@ -838,8 +837,106 @@ function ActionPlanTab({ brief }: { brief: FullBrief }) {
   );
 }
 
-/* ─── Content Audit (used from clusters tab when no clusters) ─────────────────── */
-// (content_audit_result is surfaced in the Clusters tab if clusters are empty)
+/* ─── Content Audit tab ─────────────────────────────────────────────────────── */
+function ContentAuditTab({ brief }: { brief: FullBrief }) {
+  const ca = brief.content_audit_result;
+  if (!ca) return <Empty label="Content audit data not available." />;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Summary box */}
+      <div style={{
+        border: '1px solid var(--border)', borderRadius: 8,
+        background: 'var(--bg-card)', padding: '14px 16px',
+      }}>
+        <div style={{ fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, fontWeight: 500 }}>
+          Audit summary
+        </div>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--text)', lineHeight: 1.65 }}>{ca.summary}</p>
+      </div>
+
+      {/* Stats row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 7, background: 'var(--bg-card)', padding: '12px 14px' }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent)', letterSpacing: '-0.3px', marginBottom: 3 }}>
+            {ca.pages_found}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>ranking pages found</div>
+        </div>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 7, background: 'var(--bg-card)', padding: '12px 14px' }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#d97706', letterSpacing: '-0.3px', marginBottom: 3 }}>
+            {ca.missing_topics.length}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>topic gaps identified</div>
+        </div>
+      </div>
+
+      {/* Missing topics */}
+      {ca.missing_topics.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, fontWeight: 500 }}>
+            Content gaps to fill
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {ca.missing_topics.map((topic, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 12px', borderRadius: 6,
+                border: '1px solid var(--border)', background: 'var(--bg-card)',
+              }}>
+                <span style={{
+                  width: 20, height: 20, borderRadius: 4, flexShrink: 0,
+                  background: 'rgba(245,165,36,0.12)', color: '#d97706',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, fontWeight: 700,
+                }}>
+                  {i + 1}
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--text)' }}>{topic}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Ranking pages */}
+      {ca.ranking_pages.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, fontWeight: 500 }}>
+            Currently ranking pages
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                {['URL', 'Title', 'Top keyword', 'Position'].map((h) => (
+                  <th key={h} style={{
+                    padding: '7px 10px', textAlign: h === 'Position' ? 'right' : 'left',
+                    fontSize: 10, color: 'var(--text-dim)', textTransform: 'uppercase',
+                    letterSpacing: 0.8, fontWeight: 500,
+                  }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {ca.ranking_pages.map((page: AuditPage, i: number) => (
+                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td className="mono" style={{ padding: '8px 10px', color: 'var(--accent)', fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {page.url}
+                  </td>
+                  <td style={{ padding: '8px 10px', color: 'var(--text)', maxWidth: 220 }}>{page.title ?? '—'}</td>
+                  <td style={{ padding: '8px 10px', color: 'var(--text-mut)' }}>{page.top_keyword ?? '—'}</td>
+                  <td className="mono" style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--text-mut)' }}>
+                    {page.position != null ? `#${page.position}` : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ─── Brief page ─────────────────────────────────────────────────────────────── */
 export default function BriefPage() {
@@ -1000,6 +1097,7 @@ export default function BriefPage() {
         {activeTab === 'keywords'   && <KeywordsTab brief={brief} />}
         {activeTab === 'clusters'   && <ClustersTab brief={brief} />}
         {activeTab === 'competitor' && <CompetitorTab brief={brief} />}
+        {activeTab === 'content'    && <ContentAuditTab brief={brief} />}
         {activeTab === 'llm'        && <LLMTab brief={brief} />}
         {activeTab === 'action'     && <ActionPlanTab brief={brief} />}
       </div>

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any, Literal
 
 import pydantic
@@ -106,6 +107,8 @@ class _PlanOut(pydantic.BaseModel):
     feedback: str | None
     plan_status: str
     parent_plan_id: uuid.UUID | None
+    traffic_target: int | None = None
+    feasibility_note: str | None = None
     model_config = pydantic.ConfigDict(from_attributes=True)
 
 
@@ -118,6 +121,9 @@ class _JobOut(pydantic.BaseModel):
     input: dict
     result: dict | None
     error: dict | None
+    started_at: datetime | None
+    completed_at: datetime | None
+    created_at: datetime
     model_config = pydantic.ConfigDict(from_attributes=True)
 
 
@@ -245,19 +251,16 @@ async def get_workspace_thread(
                 created_at=orch.created_at.isoformat(),
             ).model_dump())
 
-        # Research section cards (one per child agent, ordered by created_at)
+        # Sprint block: live job board + brief card
         sprint = sprint_by_parent.get(orch.id)
         if sprint:
             children = children_by_sprint.get(sprint.id, [])
-            for child in children:
-                if child.type in _SECTION_TYPES:
-                    items.append(ThreadResearchSectionItem(
-                        type="section",
-                        section_type=child.type,
-                        job_id=child.id,
-                        job_status=child.status,
-                        result=child.result,
-                    ).model_dump())
+            items.append(ThreadJobsItem(
+                type="jobs",
+                sprint_job_id=sprint.id,
+                sprint_status=sprint.status,
+                children=[_JobOut.model_validate(c) for c in children],
+            ).model_dump())
 
             # Brief card (after synthesis)
             brief = brief_by_sprint.get(sprint.id)

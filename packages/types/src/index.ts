@@ -63,6 +63,8 @@ export interface Plan {
   feedback: string | null;
   plan_status: PlanStatus;
   parent_plan_id: string | null;
+  traffic_target: number | null;
+  feasibility_note: string | null;
 }
 
 export interface Workspace {
@@ -91,9 +93,11 @@ export interface KeywordRow {
   difficulty: number | null;
   priority_score: number;
   cpc?: number;
-  intent?: 'TOF' | 'MOF' | 'BOF';
+  intent?: 'informational' | 'commercial' | 'transactional' | 'navigational';
+  funnel_stage?: 'TOF' | 'MOF' | 'BOF' | 'NAV';
   trend?: number[];
   top_competitor?: string;
+  estimated_monthly_traffic?: number;
 }
 
 export interface KeywordResult {

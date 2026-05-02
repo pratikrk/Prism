@@ -31,6 +31,8 @@ const planItem: ThreadItem = {
     feedback: null,
     plan_status: 'draft',
     parent_plan_id: null,
+    traffic_target: null,
+    feasibility_note: null,
   },
   job_status: 'awaiting_gate0',
 };

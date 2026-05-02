@@ -36,3 +36,4 @@ class Plan(Base, TimestampMixin):
         nullable=True,
     )
     traffic_target: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    feasibility_note: Mapped[str | None] = mapped_column(Text, nullable=True)

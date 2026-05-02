@@ -86,6 +86,7 @@ def orchestrator_task(self, job_id: str) -> dict:
                 feedback=feedback,
                 plan_status="draft",
                 parent_plan_id=uuid.UUID(parent_plan_id_str) if parent_plan_id_str else None,
+                traffic_target=plan.traffic_target,
             )
             session.add(plan_row)
             await session.flush()
@@ -136,11 +137,24 @@ def _child_body(agent_type: str, runner):
                     competitors=list(plan_row.competitors),
                     timeline_weeks=plan_row.timeline_weeks,
                     sprint_order=list(plan_row.sprint_order),
+                    traffic_target=plan_row.traffic_target,
                 )
                 result = await runner(plan)
                 await transition(session, child, "complete", result=_to_json(result))
                 await session.commit()
                 return {"child_job_id": child_id, "type": agent_type, "ok": True}
+            except SoftTimeLimitExceeded as exc:
+                # Explicit handler so Celery's time limit propagates correctly
+                # instead of being silently swallowed by the generic except.
+                err = classify(exc, provider=agent_type)
+                await transition(session, child, "failed", error=err)
+                await session.commit()
+                return {
+                    "child_job_id": child_id,
+                    "type": agent_type,
+                    "ok": False,
+                    "error": err.to_json(),
+                }
             except Exception as exc:
                 err = classify(exc, provider=agent_type)
                 sentry_sdk.capture_exception(exc)
@@ -180,22 +194,22 @@ async def _llm_visibility_runner(plan: Plan):
     )
 
 
-@celery_app.task(bind=True, name="agents.keyword")
+@celery_app.task(bind=True, name="agents.keyword", soft_time_limit=150, time_limit=180)
 def keyword_task(self, plan_id: str, sprint_job_id: str) -> dict:
     return _run(_child_body("keyword", _keyword_runner)(plan_id, sprint_job_id))
 
 
-@celery_app.task(bind=True, name="agents.competitor")
+@celery_app.task(bind=True, name="agents.competitor", soft_time_limit=150, time_limit=180)
 def competitor_task(self, plan_id: str, sprint_job_id: str) -> dict:
     return _run(_child_body("competitor", _competitor_runner)(plan_id, sprint_job_id))
 
 
-@celery_app.task(bind=True, name="agents.content_audit")
+@celery_app.task(bind=True, name="agents.content_audit", soft_time_limit=150, time_limit=180)
 def content_audit_task(self, plan_id: str, sprint_job_id: str) -> dict:
     return _run(_child_body("content_audit", _content_audit_runner)(plan_id, sprint_job_id))
 
 
-@celery_app.task(bind=True, name="agents.llm_visibility")
+@celery_app.task(bind=True, name="agents.llm_visibility", soft_time_limit=150, time_limit=180)
 def llm_visibility_task(self, plan_id: str, sprint_job_id: str) -> dict:
     return _run(_child_body("llm_visibility", _llm_visibility_runner)(plan_id, sprint_job_id))
 
@@ -256,10 +270,11 @@ def synthesis_task(sprint_job_id: str) -> dict:
                         plan_id=plan_id_str,
                         domain=plan_row.domain,
                         intent=plan_row.intent,
-                        keyword_result=child_results.get("keyword", {}),
+                        traffic_target=plan_row.traffic_target,
+                        keyword_result=_trim_for_synthesis(child_results.get("keyword", {})),
                         competitor_result=child_results.get("competitor", {}),
                         content_audit_result=child_results.get("content_audit", {}),
-                        llm_visibility_result=child_results.get("llm_visibility", {}),
+                        llm_visibility_result=_trim_llm_for_synthesis(child_results.get("llm_visibility", {})),
                     )
                 )
             except SoftTimeLimitExceeded:
@@ -358,6 +373,17 @@ async def _workspace_id_of_sprint(session: AsyncSession, sprint_job_id: str) -> 
     workspace_id = row.scalar_one()
     assert isinstance(workspace_id, uuid.UUID)
     return workspace_id
+
+
+def _trim_for_synthesis(kw_result: dict) -> dict:
+    """Keep top 10 keywords only — synthesis doesn't need the full ranked list."""
+    kws = kw_result.get("keywords", [])
+    return {"keywords": kws[:10]}
+
+
+def _trim_llm_for_synthesis(llm_result: dict) -> dict:
+    """Strip sample_response (can be 1000+ chars) — synthesis only needs the metrics."""
+    return {k: v for k, v in llm_result.items() if k != "sample_response"}
 
 
 def _to_json(obj: Any) -> dict:

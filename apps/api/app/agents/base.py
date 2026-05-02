@@ -83,7 +83,13 @@ class BaseAgent(ABC, Generic[TInput, TOutput]):
             )
 
         resp = await _create()
-        text = "".join(block.text for block in resp.content if getattr(block, "text", None))
+        raw = "".join(block.text for block in resp.content if getattr(block, "text", None))
+        # Strip markdown code fences Claude sometimes adds despite instructions
+        text = raw.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1]  # drop ```json line
+            text = text.rsplit("```", 1)[0]  # drop closing ```
+        text = text.strip()
         try:
             return self.RESPONSE_MODEL.model_validate_json(text)  # type: ignore[return-value]
         except pydantic.ValidationError:

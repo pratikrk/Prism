@@ -6,6 +6,12 @@ from typing import ClassVar, Generic, TypeVar
 
 import anthropic
 import pydantic
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from app.core.config import settings
 from app.skills.loader import load_skill_prompt
@@ -15,6 +21,10 @@ TOutput = TypeVar("TOutput", bound=pydantic.BaseModel)
 
 _DEFAULT_MODEL = "claude-sonnet-4-6"
 _INVALID_OUTPUT_RETRIES = 1
+
+
+def _is_rate_limit(exc: BaseException) -> bool:
+    return isinstance(exc, anthropic.RateLimitError)
 
 
 class BaseAgent(ABC, Generic[TInput, TOutput]):
@@ -27,7 +37,7 @@ class BaseAgent(ABC, Generic[TInput, TOutput]):
         self._client = anthropic.AsyncAnthropic(
             api_key=settings.anthropic_api_key.get_secret_value(),
             timeout=settings.claude_timeout,
-            max_retries=3,
+            max_retries=0,  # tenacity handles retries with proper backoff
         )
 
     @abstractmethod
@@ -57,12 +67,22 @@ class BaseAgent(ABC, Generic[TInput, TOutput]):
             f"{user}\n\n---\nPrior attempt failed schema validation:\n{_last_bad}\n"
             "Return valid JSON matching the schema, ONLY the JSON object."
         )
-        resp = await self._client.messages.create(
-            model=self.MODEL,
-            max_tokens=2048,
-            system=system,
-            messages=[{"role": "user", "content": u}],
+
+        @retry(
+            retry=retry_if_exception_type(anthropic.RateLimitError),
+            wait=wait_exponential(multiplier=1, min=15, max=60),
+            stop=stop_after_attempt(4),
+            reraise=True,
         )
+        async def _create():
+            return await self._client.messages.create(
+                model=self.MODEL,
+                max_tokens=2048,
+                system=system,
+                messages=[{"role": "user", "content": u}],
+            )
+
+        resp = await _create()
         text = "".join(block.text for block in resp.content if getattr(block, "text", None))
         try:
             return self.RESPONSE_MODEL.model_validate_json(text)  # type: ignore[return-value]

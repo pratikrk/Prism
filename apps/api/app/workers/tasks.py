@@ -99,11 +99,12 @@ def orchestrator_task(self, job_id: str) -> dict:
 
 
 def _dispatch_chord(plan_id: str, sprint_job_id: str) -> AsyncResult:
+    # Stagger by 8s each to avoid simultaneous Claude API calls hitting rate limits
     header = group(
-        keyword_task.s(plan_id, sprint_job_id),
-        competitor_task.s(plan_id, sprint_job_id),
-        content_audit_task.s(plan_id, sprint_job_id),
-        llm_visibility_task.s(plan_id, sprint_job_id),
+        keyword_task.s(plan_id, sprint_job_id).set(countdown=0),
+        competitor_task.s(plan_id, sprint_job_id).set(countdown=8),
+        content_audit_task.s(plan_id, sprint_job_id).set(countdown=16),
+        llm_visibility_task.s(plan_id, sprint_job_id).set(countdown=24),
     )
     callback = finalize_task.s(sprint_job_id)
     error_callback = finalize_error_task.s(sprint_job_id)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 import pydantic
 
@@ -18,8 +18,8 @@ class RankedKeyword(pydantic.BaseModel):
     volume: int | None = None
     difficulty: int | None = None
     cpc: float | None = None
-    intent: str | None = None        # 'informational' | 'commercial' | 'transactional' | 'navigational'
-    funnel_stage: str | None = None  # 'TOF' | 'MOF' | 'BOF' | 'NAV'
+    intent: Literal["informational", "commercial", "transactional", "navigational"] | None = None
+    funnel_stage: Literal["TOF", "MOF", "BOF", "NAV"] | None = None
     trend: list[int] | None = None   # last 12 months of search volume, oldest first
     top_competitor: str | None = None
     priority_score: float
@@ -73,18 +73,18 @@ For each keyword, compute `estimated_monthly_traffic`:
 - kd null or > 70: CTR = 1% → round(volume × 0.01)
 If volume is null, set estimated_monthly_traffic = null.
 
-## Step 5 — Build the keyword portfolio
+## Step 5 — Assign priority_score
+priority_score ∈ [0, 1]:
+  weight = (intent_alignment_match × 0.4) + (estimated_monthly_traffic / max_traffic_in_set × 0.4) + ((1 - min(difficulty, 100) / 100) × 0.2)
+  where intent_alignment_match = 1.0 if keyword matches dominant intent, 0.5 if secondary, 0.1 if deprioritised.
+
+## Step 6 — Build the keyword portfolio
 If traffic_target is provided (shown in user prompt):
   - Sort qualifying keywords by estimated_monthly_traffic descending
   - Greedily select keywords until cumulative estimated_monthly_traffic ≥ traffic_target
   - Minimum 8 keywords, maximum 20
   - Diversify: include at least 2 different intent types where available
 If no traffic_target: return top 20 by priority_score.
-
-## Step 6 — Assign priority_score
-priority_score ∈ [0, 1]:
-  weight = (intent_alignment_match × 0.4) + (estimated_monthly_traffic / max_traffic_in_set × 0.4) + ((1 - min(kd, 100) / 100) × 0.2)
-  where intent_alignment_match = 1.0 if keyword matches dominant intent, 0.5 if secondary, 0.1 if deprioritised.
 
 For each keyword also provide:
 - `term`: the keyword string
@@ -133,7 +133,7 @@ class KeywordAgent(BaseAgent[KeywordInput, KeywordResult]):
         traffic_ctx = (
             f"traffic_target={inp.plan.traffic_target} monthly organic visits — select a keyword portfolio "
             "whose cumulative estimated_monthly_traffic covers this target"
-            if inp.plan.traffic_target
+            if inp.plan.traffic_target is not None
             else "no specific traffic target — return top 20 by priority_score"
         )
 

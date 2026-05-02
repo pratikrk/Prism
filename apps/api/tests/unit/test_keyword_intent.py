@@ -108,6 +108,44 @@ async def test_traffic_target_appears_in_user_prompt():
         assert "50000" in user_arg
 
 
+@pytest.mark.asyncio
+async def test_boundary_week8_uses_kd30():
+    """timeline_weeks=8 is the last value that gets KD 30 (not KD 50)."""
+    agent = KeywordAgent()
+    with (
+        patch.object(agent, "_dfs") as mock_dfs,
+        patch.object(KeywordAgent, "_call_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        mock_dfs.keywords_for_keywords = AsyncMock(return_value=[])
+        mock_dfs.bulk_keyword_difficulty = AsyncMock(return_value={})
+        mock_claude.return_value = _result([_base_kw()])
+
+        await agent.run(KeywordInput(plan=_plan("grow fast", timeline_weeks=8)))
+
+        _, user_arg = mock_claude.call_args[0]
+        assert "max KD 30" in user_arg
+        assert "max KD 50" not in user_arg
+
+
+@pytest.mark.asyncio
+async def test_boundary_week9_uses_kd50():
+    """timeline_weeks=9 is the first value that gets KD 50 (not KD 30)."""
+    agent = KeywordAgent()
+    with (
+        patch.object(agent, "_dfs") as mock_dfs,
+        patch.object(KeywordAgent, "_call_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        mock_dfs.keywords_for_keywords = AsyncMock(return_value=[])
+        mock_dfs.bulk_keyword_difficulty = AsyncMock(return_value={})
+        mock_claude.return_value = _result([_base_kw()])
+
+        await agent.run(KeywordInput(plan=_plan("build authority", timeline_weeks=9)))
+
+        _, user_arg = mock_claude.call_args[0]
+        assert "max KD 50" in user_arg
+        assert "max KD 30" not in user_arg
+
+
 def test_ranked_keyword_accepts_ictn_and_funnel_stage():
     """RankedKeyword must accept all four ICTN values and TOF/MOF/BOF/NAV funnel stages."""
     for ictn, funnel in [

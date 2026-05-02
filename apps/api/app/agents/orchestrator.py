@@ -21,7 +21,7 @@ class Plan(pydantic.BaseModel):
     competitors: list[str]
     timeline_weeks: int = pydantic.Field(gt=0, le=260)
     sprint_order: list[str]
-    traffic_target: int | None = None  # monthly organic visits goal; null if not stated
+    traffic_target: int | None = pydantic.Field(default=None, gt=0)  # monthly organic visits goal; null if not stated
 
     @pydantic.field_validator("sprint_order")
     @classmethod

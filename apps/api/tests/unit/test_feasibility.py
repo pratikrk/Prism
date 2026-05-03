@@ -1,9 +1,6 @@
 """Unit tests for orchestrator goal feasibility detection."""
 from __future__ import annotations
 
-import pytest
-import pydantic
-
 from app.agents.orchestrator import Plan
 
 

@@ -31,7 +31,7 @@ async def test_child_body_returns_ok_on_success():
     fake_plan = MagicMock(
         intent="x", domain="x.test", competitors=[], timeline_weeks=12,
         sprint_order=["keyword", "competitor", "content_audit", "llm_visibility"],
-        traffic_target=None,
+        traffic_target=None, feasibility_note=None,
     )
     ctx, _ = _mock_session_ctx(fake_plan)
 
@@ -56,7 +56,7 @@ async def test_child_body_catches_exception_and_reports_to_sentry(monkeypatch):
     fake_plan = MagicMock(
         intent="x", domain="x.test", competitors=[], timeline_weeks=12,
         sprint_order=["keyword", "competitor", "content_audit", "llm_visibility"],
-        traffic_target=None,
+        traffic_target=None, feasibility_note=None,
     )
     ctx, _ = _mock_session_ctx(fake_plan)
 
@@ -89,7 +89,7 @@ async def test_child_body_passes_traffic_target_to_plan():
         competitors=[],
         timeline_weeks=12,
         sprint_order=["keyword", "competitor", "content_audit", "llm_visibility"],
-        traffic_target=50000,
+        traffic_target=50000, feasibility_note=None,
     )
     ctx, _ = _mock_session_ctx(fake_plan)
 

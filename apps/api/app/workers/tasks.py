@@ -139,6 +139,7 @@ def _child_body(agent_type: str, runner):
                     timeline_weeks=plan_row.timeline_weeks,
                     sprint_order=list(plan_row.sprint_order),
                     traffic_target=plan_row.traffic_target,
+                    feasibility_note=plan_row.feasibility_note,
                 )
                 result = await runner(plan)
                 await transition(session, child, "complete", result=_to_json(result))

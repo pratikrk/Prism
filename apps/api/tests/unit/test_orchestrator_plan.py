@@ -41,7 +41,19 @@ def test_plan_rejects_string_traffic_target():
         )
 
 
-def test_plan_rejects_zero_traffic_target():
+def test_plan_coerces_zero_traffic_target_to_none():
+    p = Plan(
+        intent="grow traffic",
+        domain="example.com",
+        competitors=[],
+        timeline_weeks=12,
+        sprint_order=["keyword", "competitor", "content_audit", "llm_visibility"],
+        traffic_target=0,
+    )
+    assert p.traffic_target is None
+
+
+def test_plan_rejects_negative_traffic_target():
     with pytest.raises(pydantic.ValidationError):
         Plan(
             intent="grow traffic",
@@ -49,5 +61,5 @@ def test_plan_rejects_zero_traffic_target():
             competitors=[],
             timeline_weeks=12,
             sprint_order=["keyword", "competitor", "content_audit", "llm_visibility"],
-            traffic_target=0,
+            traffic_target=-100,
         )

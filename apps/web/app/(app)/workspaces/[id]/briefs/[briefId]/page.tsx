@@ -315,7 +315,7 @@ function KdBar({ kd }: { kd: number | null }) {
 
 /* ─── Keywords tab ──────────────────────────────────────────────────────────── */
 type SortField = 'priority_score' | 'volume' | 'difficulty';
-type IntentFilter = 'All' | 'TOF' | 'MOF' | 'BOF';
+type IntentFilter = 'All' | 'TOF' | 'MOF' | 'BOF' | 'NAV';
 
 function KeywordsTab({ brief }: { brief: FullBrief }) {
   const kw = brief.keyword_result;
@@ -355,6 +355,7 @@ function KeywordsTab({ brief }: { brief: FullBrief }) {
     TOF: { bg: 'rgba(91,141,255,0.12)', color: '#5b8dff' },
     MOF: { bg: 'rgba(245,165,36,0.12)', color: '#d97706' },
     BOF: { bg: 'rgba(62,207,142,0.12)', color: 'var(--ok)' },
+    NAV: { bg: 'rgba(155,155,165,0.12)', color: 'var(--text-dim)' },
   };
 
   return (
@@ -397,7 +398,7 @@ function KeywordsTab({ brief }: { brief: FullBrief }) {
             color: 'var(--text)', outline: 'none',
           }}
         />
-        {(['All', 'TOF', 'MOF', 'BOF'] as IntentFilter[]).map(f => (
+        {(['All', 'TOF', 'MOF', 'BOF', 'NAV'] as IntentFilter[]).map(f => (
           <button key={f} onClick={() => setIntent(f)} style={{
             padding: '5px 10px', borderRadius: 20, fontSize: 11, fontWeight: 500,
             border: 'none', cursor: 'pointer',

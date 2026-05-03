@@ -105,7 +105,7 @@ export function PlanCard({ plan, jobStatus, onEdit, onRefine, onApprove }: PlanC
         }}>
           {/* Feasibility warning */}
           {plan.feasibility_note && (
-            <div style={{
+            <div role="note" style={{
               background: 'var(--warn-dim, #fff8e6)',
               border: '1px solid var(--warn, #d97706)',
               borderRadius: 8,

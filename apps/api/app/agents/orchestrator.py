@@ -21,7 +21,14 @@ class Plan(pydantic.BaseModel):
     competitors: list[str]
     timeline_weeks: int = pydantic.Field(gt=0, le=260)
     sprint_order: list[str]
-    traffic_target: int | None = pydantic.Field(default=None, gt=0)  # monthly organic visits goal; null if not stated
+    traffic_target: int | None = pydantic.Field(default=None, ge=0)  # monthly organic visits goal; null if not stated
+
+    @pydantic.field_validator("traffic_target", mode="before")
+    @classmethod
+    def _coerce_zero_target(cls, v: object) -> object:
+        if v == 0:
+            return None
+        return v
     feasibility_note: str | None = None  # set when goal timeline is unrealistic for SEO
 
     @pydantic.field_validator("sprint_order")

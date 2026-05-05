@@ -4,9 +4,10 @@ import { useAuth } from '@clerk/nextjs';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import useSWR from 'swr';
-import { getThread, submitJob } from '@/lib/api';
+import { getThread, submitJob, listWorkspaces } from '@/lib/api';
 import { ConversationThread } from '@/components/conversation-thread';
 import { GoalInput } from '@/components/goal-input';
+import type { ThreadItem } from '@prism/types';
 
 function useToken() {
   const { getToken } = useAuth();
@@ -19,21 +20,51 @@ function useToken() {
   return t;
 }
 
+function hasActiveJob(items: ThreadItem[]) {
+  return items.some(
+    (i) =>
+      (i.type === 'goal' && i.job_status === 'running') ||
+      (i.type === 'jobs' &&
+        i.sprint_status !== 'complete' &&
+        i.sprint_status !== 'complete_with_errors' &&
+        i.sprint_status !== 'failed'),
+  );
+}
+
 export default function WorkspaceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { getToken } = useAuth();
   const token = useToken();
+  const [pendingGoal, setPendingGoal] = useState<string | null>(null);
+
+  const { data: workspaces = [] } = useSWR(
+    token ? 'workspaces' : null,
+    () => listWorkspaces(token!),
+  );
+  const domain = workspaces.find((w) => w.id === id)?.domain;
 
   const swrKey = token ? `thread:${id}` : null;
   const { data: items = [], mutate } = useSWR(
     swrKey,
     () => getThread(token!, id),
-    { refreshInterval: 5000 },
+    {
+      // Poll fast while a job is in flight, slow otherwise
+      refreshInterval: (data) =>
+        !data || hasActiveJob(data) || pendingGoal || data.length === 0 ? 1500 : 8000,
+    },
   );
+
+  // Clear pending goal once the real goal item appears in the thread
+  useEffect(() => {
+    if (pendingGoal && items.some((i) => i.type === 'goal')) {
+      setPendingGoal(null);
+    }
+  }, [items, pendingGoal]);
 
   async function handleSubmit(goal: string) {
     const tok = await getToken();
     if (!tok) return;
+    setPendingGoal(goal);
     await submitJob(tok, id, { goal });
     mutate();
   }
@@ -41,23 +72,23 @@ export default function WorkspaceDetailPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Thread */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 24px 0' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 24px 0', display: 'flex', flexDirection: 'column' }}>
         <ConversationThread
           items={items}
           token={token ?? ''}
           workspaceId={id}
+          pendingGoal={pendingGoal}
           onRefetch={() => mutate()}
         />
       </div>
 
-      {/* Fixed goal input at bottom */}
+      {/* Goal input pinned at bottom */}
       <div style={{
-        borderTop: '1px solid var(--border)',
+        padding: '16px 24px 20px',
         background: 'var(--bg)',
-        padding: '20px 24px',
         display: 'flex', justifyContent: 'center',
       }}>
-        <GoalInput onSubmit={handleSubmit} />
+        <GoalInput onSubmit={handleSubmit} domain={domain} />
       </div>
     </div>
   );

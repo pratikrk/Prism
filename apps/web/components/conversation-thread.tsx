@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import type { ThreadBriefItem, ThreadItem, ThreadJobsItem } from '@prism/types';
+import type { ThreadAuditItem, ThreadBriefItem, ThreadItem, ThreadJobsItem } from '@prism/types';
 import { GoalBubble } from './goal-bubble';
 import { PlanCard } from './plan-card';
 import { ConfirmCard } from './confirm-card';
 import { JobBoard } from './job-board';
+import { AuditCard } from './audit-card';
 import { useJobEvents } from '@/lib/sse';
 import { approvePlan, patchPlan, refinePlan } from '@/lib/api';
 
@@ -13,6 +14,7 @@ interface ConversationThreadProps {
   items: ThreadItem[];
   token: string;
   workspaceId: string;
+  pendingGoal?: string | null;
   onRefetch: () => void;
 }
 
@@ -131,8 +133,52 @@ function StrategyBriefCard({
   );
 }
 
+/* ─── Thinking bubble ──────────────────────────────────────────────────────── */
+function ThinkingBubble({ label }: { label: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+      <div style={{
+        width: 24, height: 24, borderRadius: 6, flexShrink: 0, marginTop: 2,
+        background: 'var(--accent-dim, rgba(99,102,241,0.12))',
+        color: 'var(--accent)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 9,
+      }}>▲</div>
+      <div style={{
+        padding: '10px 14px',
+        border: '1px solid var(--border)',
+        borderRadius: '2px 10px 10px 10px',
+        background: 'var(--bg-card)',
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <span style={{ fontSize: 12, color: 'var(--text-mut)' }}>{label}</span>
+        <span style={{ display: 'inline-flex', gap: 3 }}>
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              style={{
+                width: 5, height: 5, borderRadius: '50%',
+                background: 'var(--accent)',
+                display: 'inline-block',
+                animation: `thinking-pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+                opacity: 0.4,
+              }}
+            />
+          ))}
+        </span>
+      </div>
+      <style>{`
+        @keyframes thinking-pulse {
+          0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); }
+          40% { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 /* ─── Conversation thread ──────────────────────────────────────────────────── */
-export function ConversationThread({ items, token, workspaceId, onRefetch }: ConversationThreadProps) {
+export function ConversationThread({ items, token, workspaceId, pendingGoal, onRefetch }: ConversationThreadProps) {
   const activeJobsItem = items.find(
     (i): i is ThreadJobsItem =>
       i.type === 'jobs' &&
@@ -141,10 +187,27 @@ export function ConversationThread({ items, token, workspaceId, onRefetch }: Con
   );
   const events = useJobEvents(activeJobsItem?.sprint_job_id ?? null, token);
 
-  if (items.length === 0) {
+  // Determine if we should show a thinking indicator
+  const lastGoal = [...items].reverse().find((i) => i.type === 'goal');
+  const orchestratorRunning = lastGoal?.type === 'goal' && lastGoal.job_status === 'running';
+  const hasPlanForLastGoal = items.some((i) => i.type === 'plan');
+  const showOrchThinking = orchestratorRunning && !hasPlanForLastGoal;
+
+  if (items.length === 0 && !pendingGoal) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-        Submit your first goal below to get started.
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+        <svg width={48} height={48} viewBox="0 0 24 24" fill="none" style={{ color: 'var(--border-strong, var(--border))', opacity: 0.6 }}>
+          <path d="M12 2L2 20h20L12 2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+          <path d="M12 2L8 20M12 2L16 20" stroke="currentColor" strokeWidth="1" strokeOpacity="0.4"/>
+        </svg>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--text-mut)', fontWeight: 500 }}>
+            Describe a traffic goal below.
+          </p>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-dim)' }}>
+            Prism will plan the sprint.
+          </p>
+        </div>
       </div>
     );
   }
@@ -233,6 +296,15 @@ export function ConversationThread({ items, token, workspaceId, onRefetch }: Con
           );
         }
 
+        if (item.type === 'audit') {
+          return (
+            <AuditCard
+              key={`audit-${item.created_at}`}
+              result={(item as ThreadAuditItem).result}
+            />
+          );
+        }
+
         if (item.type === 'error') {
           return (
             <div
@@ -249,6 +321,16 @@ export function ConversationThread({ items, token, workspaceId, onRefetch }: Con
 
         return null;
       })}
+
+      {/* Optimistic goal bubble while API call is in flight */}
+      {pendingGoal && (
+        <GoalBubble goal={pendingGoal} feedback={null} createdAt={new Date().toISOString()} />
+      )}
+
+      {/* Thinking indicators */}
+      {(pendingGoal || showOrchThinking) && (
+        <ThinkingBubble label="Analysing goal and building plan" />
+      )}
     </div>
   );
 }

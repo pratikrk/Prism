@@ -198,6 +198,39 @@ export interface FullBrief extends StrategyBrief {
   llm_visibility_result: LLMVisibilityResult | null;
 }
 
+// ── Quick Audit ───────────────────────────────────────────────────────────
+
+export type AuditSeverity = 'critical' | 'high' | 'medium' | 'quick_win';
+
+export interface AuditActionItem {
+  severity: AuditSeverity;
+  title: string;
+  rationale: string;
+  effort_minutes: number | null;
+}
+
+export interface AuditScore {
+  technical: number;
+  content: number;
+  ai_visibility: number;
+  overall: number;
+}
+
+export interface QuickAuditResult {
+  domain: string;
+  domain_rating: number | null;
+  estimated_monthly_traffic: number | null;
+  top_keywords: string[];
+  score: AuditScore;
+  action_items: AuditActionItem[];
+}
+
+export interface ThreadAuditItem {
+  type: 'audit';
+  result: QuickAuditResult;
+  created_at: string;
+}
+
 // ── Thread items ──────────────────────────────────────────────────────────
 
 export interface ThreadGoalItem {
@@ -254,4 +287,5 @@ export type ThreadItem =
   | ThreadResearchSectionItem
   | ThreadBriefItem
   | ThreadJobsItem
-  | ThreadErrorItem;
+  | ThreadErrorItem
+  | ThreadAuditItem;

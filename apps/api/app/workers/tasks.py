@@ -18,17 +18,20 @@ from celery.result import AsyncResult
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import func
+
 from app.agents.competitor import CompetitorAgent, CompetitorInput
 from app.agents.content_audit import ContentAuditAgent, ContentAuditInput
 from app.agents.keyword import KeywordAgent, KeywordInput
 from app.agents.llm_visibility import LLMVisibilityAgent, LLMVisibilityInput
 from app.agents.orchestrator import OrchestratorAgent, OrchestratorInput, Plan
+from app.agents.quick_audit import QuickAuditAgent, QuickAuditInput
 from app.agents.synthesis import SynthesisAgent, SynthesisInput
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.core.errors import classify
 from app.core.jobs import transition
-from app.models import Job, Plan as PlanModel, StrategyBrief, Workspace
+from app.models import AuditResult, Job, Plan as PlanModel, StrategyBrief, Workspace
 from app.workers.celery_app import celery_app
 
 
@@ -316,6 +319,45 @@ def synthesis_task(sprint_job_id: str) -> dict:
     except Exception as exc:
         sentry_sdk.capture_exception(exc)
         return {"ok": False, "reason": f"synthesis bug: {exc!r}"}
+
+
+@celery_app.task(bind=True, name="agents.quick_audit", soft_time_limit=120, time_limit=150)
+def quick_audit_task(self, workspace_id: str) -> dict:
+    async def _body() -> dict:
+        async with SessionLocal() as session:
+            workspace = await session.get(Workspace, uuid.UUID(workspace_id))
+            if workspace is None:
+                return {"ok": False, "error": "workspace not found"}
+            try:
+                result = await QuickAuditAgent().run(
+                    QuickAuditInput(domain=workspace.domain)
+                )
+            except Exception as exc:
+                sentry_sdk.capture_exception(exc)
+                err = classify(exc, provider="quick_audit")
+                return {"ok": False, "error": err.to_json()}
+
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+            stmt = (
+                pg_insert(AuditResult)
+                .values(
+                    workspace_id=workspace.id,
+                    result=_to_json(result),
+                )
+                .on_conflict_do_update(
+                    constraint="uq_audit_results_workspace",
+                    set_={"result": _to_json(result), "updated_at": func.now()},
+                )
+            )
+            await session.execute(stmt)
+            await session.commit()
+            return {"ok": True, "workspace_id": workspace_id}
+
+    try:
+        return _run(_body())
+    except Exception as exc:
+        sentry_sdk.capture_exception(exc)
+        return {"ok": False, "error": str(exc)}
 
 
 @celery_app.task(name="agents.finalize_error")

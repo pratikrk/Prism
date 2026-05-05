@@ -59,6 +59,9 @@ async def create_workspace(
     session.add(w)
     await session.commit()
     await session.refresh(w)
+    # Fire audit in background — non-blocking
+    from app.workers.tasks import quick_audit_task
+    quick_audit_task.delay(str(w.id))
     return w
 
 

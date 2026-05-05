@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.clerk import ClerkPrincipal, current_user
 from app.core.db import get_session
-from app.models import Job, Plan as PlanModel, StrategyBrief, User, Workspace
+from app.models import AuditResult, Job, Plan as PlanModel, StrategyBrief, User, Workspace
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
@@ -169,6 +169,12 @@ class ThreadErrorItem(pydantic.BaseModel):
     created_at: str
 
 
+class ThreadAuditItem(pydantic.BaseModel):
+    type: Literal["audit"] = "audit"
+    result: dict
+    created_at: str
+
+
 _SECTION_TYPES = {"keyword", "competitor", "content_audit", "llm_visibility"}
 
 
@@ -181,6 +187,12 @@ async def get_workspace_thread(
     w = await session.get(Workspace, workspace_id)
     if w is None or w.user_id != principal.user_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "workspace not found")
+
+    # Audit result (prepended before goal items — it's Prism's first message)
+    audit_row = await session.execute(
+        select(AuditResult).where(AuditResult.workspace_id == workspace_id)
+    )
+    audit = audit_row.scalar_one_or_none()
 
     # Load all orchestrator jobs for this workspace ordered by time
     result = await session.execute(
@@ -227,6 +239,12 @@ async def get_workspace_thread(
             brief_by_sprint[brief.sprint_job_id] = brief
 
     items: list = []
+    if audit:
+        items.append(ThreadAuditItem(
+            type="audit",
+            result=audit.result,
+            created_at=audit.created_at.isoformat(),
+        ).model_dump())
     for orch in orch_jobs:
         # Goal bubble
         items.append(ThreadGoalItem(

@@ -202,6 +202,13 @@ async def get_workspace_thread(
     )
     orch_jobs = list(result.scalars())
     if not orch_jobs:
+        # Return audit item even when no goal has been set yet
+        if audit:
+            return [ThreadAuditItem(
+                type="audit",
+                result=audit.result,
+                created_at=audit.created_at.isoformat(),
+            ).model_dump()]
         return []
 
     orch_ids = [j.id for j in orch_jobs]

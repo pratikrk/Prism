@@ -1,4 +1,4 @@
-import type { Job, Plan, ThreadItem, Workspace } from '@prism/types';
+import type { FullBrief, Job, Plan, ThreadItem, Workspace } from '@prism/types';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -43,6 +43,18 @@ export async function submitJob(
   )).json();
 }
 
+export async function sendChatMessage(
+  token: string,
+  workspaceId: string,
+  message: string,
+): Promise<{ intent: string; dispatched: boolean; answer: string | null }> {
+  return (await fetchWithAuth(
+    `/workspaces/${workspaceId}/chat`,
+    { method: 'POST', body: JSON.stringify({ message }) },
+    token,
+  )).json();
+}
+
 export async function listWorkspaceJobs(token: string, workspaceId: string): Promise<Job[]> {
   return (await fetchWithAuth(`/workspaces/${workspaceId}/jobs`, { method: 'GET' }, token)).json();
 }
@@ -81,4 +93,15 @@ export async function refinePlan(
     { method: 'POST', body: JSON.stringify({ feedback }) },
     token,
   )).json();
+}
+
+export async function getBrief(token: string, briefId: string): Promise<FullBrief> {
+  return (await fetchWithAuth(`/briefs/${briefId}`, { method: 'GET' }, token)).json();
+}
+
+export async function approveBrief(
+  token: string,
+  briefId: string,
+): Promise<{ id: string; status: string; share_token: string; approved_at: string }> {
+  return (await fetchWithAuth(`/briefs/${briefId}/approve`, { method: 'POST' }, token)).json();
 }

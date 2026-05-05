@@ -4,9 +4,9 @@ import { useAuth } from '@clerk/nextjs';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import useSWR from 'swr';
-import { getThread, submitJob, listWorkspaces } from '@/lib/api';
+import { getThread, sendChatMessage, listWorkspaces } from '@/lib/api';
 import { ConversationThread } from '@/components/conversation-thread';
-import { GoalInput } from '@/components/goal-input';
+import { ChatInput } from '@/components/goal-input';
 import type { ThreadItem } from '@prism/types';
 
 function useToken() {
@@ -61,11 +61,11 @@ export default function WorkspaceDetailPage() {
     }
   }, [items, pendingGoal]);
 
-  async function handleSubmit(goal: string) {
+  async function handleSubmit(message: string) {
     const tok = await getToken();
     if (!tok) return;
-    setPendingGoal(goal);
-    await submitJob(tok, id, { goal });
+    setPendingGoal(message);
+    await sendChatMessage(tok, id, message);
     mutate();
   }
 
@@ -88,7 +88,7 @@ export default function WorkspaceDetailPage() {
         background: 'var(--bg)',
         display: 'flex', justifyContent: 'center',
       }}>
-        <GoalInput onSubmit={handleSubmit} domain={domain} />
+        <ChatInput onSubmit={handleSubmit} domain={domain} />
       </div>
     </div>
   );

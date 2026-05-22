@@ -26,13 +26,22 @@ describe('WorkspaceNav', () => {
     (usePathname as ReturnType<typeof vi.fn>).mockReturnValue('/workspaces/ws-1');
     render(<WorkspaceNav />);
     const chatLink = screen.getByRole('link', { name: 'Chat' });
-    expect(chatLink).toHaveAttribute('data-active', 'true');
+    expect(chatLink).toHaveAttribute('aria-current', 'page');
   });
 
   it('marks Dashboard as active on dashboard route', () => {
     (usePathname as ReturnType<typeof vi.fn>).mockReturnValue('/workspaces/ws-1/dashboard');
     render(<WorkspaceNav />);
     const dashLink = screen.getByRole('link', { name: 'Dashboard' });
-    expect(dashLink).toHaveAttribute('data-active', 'true');
+    expect(dashLink).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('marks only Chat as active — no other tab is active on workspace root', () => {
+    (usePathname as ReturnType<typeof vi.fn>).mockReturnValue('/workspaces/ws-1');
+    render(<WorkspaceNav />);
+    const inactiveTabs = ['Dashboard', 'Sprint', 'Content', 'Calendar'];
+    for (const name of inactiveTabs) {
+      expect(screen.getByRole('link', { name })).not.toHaveAttribute('aria-current');
+    }
   });
 });

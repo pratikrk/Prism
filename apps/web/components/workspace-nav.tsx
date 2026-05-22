@@ -29,12 +29,12 @@ export function WorkspaceNav() {
         const href = `${base}${path}`;
         const active = path === ''
           ? pathname === base || pathname === `${base}/`
-          : pathname.startsWith(`${base}${path}`);
+          : pathname === `${base}${path}` || pathname.startsWith(`${base}${path}/`);
         return (
           <Link
             key={label}
             href={href}
-            data-active={active}
+            aria-current={active ? 'page' : undefined}
             style={{
               padding: '10px 14px',
               fontSize: '13px',

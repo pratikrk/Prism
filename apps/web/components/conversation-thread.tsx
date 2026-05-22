@@ -202,10 +202,10 @@ export function ConversationThread({ items, token, workspaceId, pendingGoal, onR
         </svg>
         <div style={{ textAlign: 'center' }}>
           <p style={{ margin: 0, fontSize: 14, color: 'var(--text-mut)', fontWeight: 500 }}>
-            Describe a traffic goal below.
+            Tell me about your site — I&apos;ll take it from there.
           </p>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-dim)' }}>
-            Prism will plan the sprint.
+            Try: &quot;audit my site&quot;, &quot;why am I not getting traffic?&quot;, or &quot;what should I fix first?&quot;
           </p>
         </div>
       </div>

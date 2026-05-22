@@ -72,6 +72,6 @@ describe('ConversationThread', () => {
         onRefetch={vi.fn()}
       />,
     );
-    expect(screen.getByText(/submit your first goal/i)).toBeTruthy();
+    expect(screen.getByText(/tell me about your site/i)).toBeTruthy();
   });
 });

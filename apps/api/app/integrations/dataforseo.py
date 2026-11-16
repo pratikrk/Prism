@@ -49,11 +49,25 @@ class KeywordRow(pydantic.BaseModel):
     keyword_difficulty: int | None = None
     competition: str | None = None        # 'HIGH' | 'MEDIUM' | 'LOW' from Google Ads
     competition_index: int | None = None  # 0–100 numeric equivalent
+    cpc: float | None = None
+    low_top_of_page_bid: float | None = None
+    high_top_of_page_bid: float | None = None
+    monthly_searches: list[dict] | None = None
 
     @pydantic.field_validator("competition", mode="before")
     @classmethod
     def _normalise_competition(cls, v: object) -> str | None:
         return _competition_str(v)
+
+    def trend_volumes(self, months: int = 12) -> list[int]:
+        """Return the last N months of search volumes, oldest first."""
+        if not self.monthly_searches:
+            return []
+        sorted_ms = sorted(
+            self.monthly_searches,
+            key=lambda x: (x.get("year", 0), x.get("month", 0)),
+        )
+        return [m.get("search_volume", 0) for m in sorted_ms[-months:]]
 
 
 class DataForSEOClient:
@@ -98,6 +112,24 @@ class DataForSEOClient:
         rows = _extract_result(data)
         return rows[0] if rows else {}
 
+    async def bulk_keyword_difficulty(self, keywords: list[str]) -> dict[str, int]:
+        """Return {keyword: difficulty} for up to 1000 keywords."""
+        if not keywords:
+            return {}
+        payload = [{"keywords": keywords[:1000], "language_code": "en", "location_code": 2840}]
+        data = await self._post(
+            "/v3/dataforseo_labs/google/bulk_keyword_difficulty/live", payload
+        )
+        rows = _extract_result(data)
+        result: dict[str, int] = {}
+        for row in rows:
+            for item in row.get("items") or []:
+                kw = item.get("keyword")
+                kd = item.get("keyword_difficulty")
+                if kw and kd is not None:
+                    result[kw] = kd
+        return result
+
     async def ranked_keywords(self, domain: str, limit: int = 100) -> list[dict]:
         """Return keywords `domain` ranks for, with URLs and positions."""
         payload = [
@@ -114,6 +146,11 @@ class DataForSEOClient:
         )
         return _extract_result(data)
 
+    # Hard ceiling on total wall-clock time for a single API call (incl. retries).
+    # asyncio.wait_for cancels the coroutine even if the TCP connection stalls and
+    # httpx's per-chunk timeout never fires.
+    _TOTAL_TIMEOUT_S: int = 90
+
     async def _post(self, path: str, payload: Any) -> dict:
         cache_key = _cache_key(path, payload)
         if self._redis is not None:
@@ -121,7 +158,15 @@ class DataForSEOClient:
             if cached:
                 return json.loads(cached)
         async with self._sem:
-            data = await self._do_post_with_retry(path, payload)
+            try:
+                data = await asyncio.wait_for(
+                    self._do_post_with_retry(path, payload),
+                    timeout=self._TOTAL_TIMEOUT_S,
+                )
+            except asyncio.TimeoutError:
+                raise DataForSEOError(
+                    f"DataForSEO request exceeded total timeout ({self._TOTAL_TIMEOUT_S}s)"
+                )
         if self._redis is not None:
             await self._redis.set(cache_key, json.dumps(data), ex=_CACHE_TTL)
         return data
@@ -129,8 +174,8 @@ class DataForSEOClient:
     async def _do_post_with_retry(self, path: str, payload: Any) -> dict:
         try:
             async for attempt in AsyncRetrying(
-                stop=stop_after_attempt(4),
-                wait=wait_exponential_jitter(initial=1, max=10),
+                stop=stop_after_attempt(3),
+                wait=wait_exponential_jitter(initial=2, max=15),
                 retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.TimeoutException)),
                 reraise=True,
             ):

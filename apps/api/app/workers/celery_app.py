@@ -25,4 +25,6 @@ celery_app.conf.update(
     task_time_limit=180,
     broker_connection_retry_on_startup=True,
     result_extended=True,
+    # Fire on_error callback when a chord header task raises (not just the body).
+    task_allow_error_cb_on_chord_header=True,
 )

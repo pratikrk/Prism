@@ -4,11 +4,19 @@ Requires: docker compose --profile test up -d
 """
 from __future__ import annotations
 
+import asyncio
+import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
-from app.models import Job, Plan as PlanModel, StrategyBrief
+from app.auth.clerk import ClerkPrincipal, current_user
+from app.core.config import settings
+from app.core.db import get_session
+from app.main import app
+from app.models import Job, Plan as PlanModel, StrategyBrief, User, Workspace
 from app.workers.tasks import (
     competitor_task,
     content_audit_task,
@@ -19,77 +27,85 @@ from app.workers.tasks import (
 )
 
 
-def _fake_plan_obj():
-    return MagicMock(
-        intent="drive signups",
-        domain="whitecarrot.io",
-        competitors=["greenhouse.io"],
-        timeline_weeks=24,
-        sprint_order=["keyword", "competitor", "content_audit", "llm_visibility"],
-    )
+def _factory():
+    """NullPool session factory that creates fresh connections (no cross-loop reuse)."""
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
+    return async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
+
+async def _create_workspace(factory) -> tuple[uuid.UUID, str]:
+    """Create a real committed workspace + user and return (ws_id, domain)."""
+    uid = f"rspr_{uuid.uuid4().hex[:8]}"
+    async with factory() as session:
+        user = User(id=uid, email=f"{uid}@test.io", name="T")
+        ws = Workspace(user_id=uid, name="sprint-ws", domain=f"{uid}.test")
+        session.add(user)
+        session.add(ws)
+        await session.flush()
+        ws_id, domain = ws.id, ws.domain
+        await session.commit()
+    return ws_id, domain
 
 
 @pytest.mark.asyncio
-async def test_full_sprint_to_gate1(db_session, sample_workspace):
+async def test_full_sprint_to_gate1():
     """All 4 agents + synthesis → sprint at awaiting_gate1 + brief in DB."""
-    # Create orchestrator job + sprint job + plan
-    orch_job = Job(
-        workspace_id=sample_workspace.id,
-        type="orchestrator",
-        status="complete",
-        input={"goal": "grow signups"},
+    factory = _factory()
+    from sqlalchemy import select
+
+    ws_id, domain = await _create_workspace(factory)
+
+    # Create orchestrator + plan + sprint with real committed session
+    async with factory() as session:
+        orch_job = Job(
+            workspace_id=ws_id,
+            type="orchestrator",
+            status="complete",
+            input={"goal": "grow signups"},
+        )
+        session.add(orch_job)
+        await session.flush()
+
+        plan_row = PlanModel(
+            job_id=orch_job.id,
+            workspace_id=ws_id,
+            intent="drive signups",
+            domain=domain,
+            competitors=["greenhouse.io"],
+            timeline_weeks=24,
+            sprint_order=["keyword", "competitor", "content_audit", "llm_visibility"],
+            plan_status="approved",
+        )
+        session.add(plan_row)
+        await session.flush()
+
+        sprint = Job(
+            workspace_id=ws_id,
+            parent_job_id=orch_job.id,
+            type="sprint",
+            status="running",
+            input={"plan_id": str(plan_row.id)},
+        )
+        session.add(sprint)
+        await session.flush()
+        sprint_id = str(sprint.id)
+        plan_id = str(plan_row.id)
+        await session.commit()
+
+    from app.agents.keyword import KeywordResult
+    from app.agents.competitor import CompetitorResult
+    from app.agents.content_audit import ContentAuditResult
+    from app.agents.llm_visibility import LLMVisibilityResult
+    from app.agents.synthesis import SynthesisResult
+
+    fake_kw = KeywordResult(keywords=[])
+    fake_competitor = CompetitorResult(competitors=[], gap_keywords=[], quick_wins=[])
+    fake_audit = ContentAuditResult(pages_found=0, ranking_pages=[], missing_topics=[], summary="")
+    fake_llm = LLMVisibilityResult(
+        queries_tested=[], brand_mentioned=False, mention_count=0,
+        competitor_mentions={}, sample_response="", note=""
     )
-    db_session.add(orch_job)
-    await db_session.flush()
-
-    plan_row = PlanModel(
-        job_id=orch_job.id,
-        workspace_id=sample_workspace.id,
-        intent="drive signups",
-        domain=sample_workspace.domain,
-        competitors=["greenhouse.io"],
-        timeline_weeks=24,
-        sprint_order=["keyword", "competitor", "content_audit", "llm_visibility"],
-        plan_status="approved",
-    )
-    db_session.add(plan_row)
-    await db_session.flush()
-
-    sprint = Job(
-        workspace_id=sample_workspace.id,
-        parent_job_id=orch_job.id,
-        type="sprint",
-        status="running",
-        input={"plan_id": str(plan_row.id)},
-    )
-    db_session.add(sprint)
-    await db_session.flush()
-    await db_session.commit()
-
-    sprint_id = str(sprint.id)
-    plan_id = str(plan_row.id)
-
-    fake_kw = MagicMock()
-    fake_kw.keywords = []
-    fake_competitor = MagicMock()
-    fake_competitor.competitors = []
-    fake_competitor.gap_keywords = []
-    fake_competitor.quick_wins = []
-    fake_audit = MagicMock()
-    fake_audit.pages_found = 0
-    fake_audit.ranking_pages = []
-    fake_audit.missing_topics = []
-    fake_audit.summary = ""
-    fake_llm = MagicMock()
-    fake_llm.queries_tested = []
-    fake_llm.brand_mentioned = False
-    fake_llm.mention_count = 0
-    fake_llm.competitor_mentions = {}
-    fake_llm.sample_response = ""
-    fake_llm.note = ""
-    fake_synthesis = MagicMock()
-    fake_synthesis.clusters = []
-    fake_synthesis.executive_summary = []
+    fake_synthesis = SynthesisResult(clusters=[], executive_summary=[])
 
     with (
         patch("app.workers.tasks.KeywordAgent") as MockKW,
@@ -97,6 +113,7 @@ async def test_full_sprint_to_gate1(db_session, sample_workspace):
         patch("app.workers.tasks.ContentAuditAgent") as MockAudit,
         patch("app.workers.tasks.LLMVisibilityAgent") as MockLLM,
         patch("app.workers.tasks.SynthesisAgent") as MockSynth,
+        patch.object(synthesis_task, "apply_async"),  # prevent background dispatch (finalize uses apply_async)
     ):
         MockKW.return_value.run = AsyncMock(return_value=fake_kw)
         MockComp.return_value.run = AsyncMock(return_value=fake_competitor)
@@ -104,59 +121,67 @@ async def test_full_sprint_to_gate1(db_session, sample_workspace):
         MockLLM.return_value.run = AsyncMock(return_value=fake_llm)
         MockSynth.return_value.run = AsyncMock(return_value=fake_synthesis)
 
-        r1 = keyword_task(plan_id, sprint_id)
-        r2 = competitor_task(plan_id, sprint_id)
-        r3 = content_audit_task(plan_id, sprint_id)
-        r4 = llm_visibility_task(plan_id, sprint_id)
+        r1 = await asyncio.to_thread(keyword_task, plan_id, sprint_id)
+        r2 = await asyncio.to_thread(competitor_task, plan_id, sprint_id)
+        r3 = await asyncio.to_thread(content_audit_task, plan_id, sprint_id)
+        r4 = await asyncio.to_thread(llm_visibility_task, plan_id, sprint_id)
 
         assert all(r["ok"] for r in [r1, r2, r3, r4])
 
-        fin = finalize_task([r1, r2, r3, r4], sprint_id)
+        fin = await asyncio.to_thread(finalize_task, [r1, r2, r3, r4], sprint_id)
         assert fin["ok"] is True
         assert fin["status"] == "synthesis_dispatched"
 
-        # finalize fired synthesis — call it directly
-        syn = synthesis_task(sprint_id)
+        # finalize dispatched synthesis via .delay() — call it directly instead
+        syn = await asyncio.to_thread(synthesis_task, sprint_id)
         assert syn["ok"] is True
         assert "brief_id" in syn
 
-    await db_session.refresh(sprint)
-    assert sprint.status == "awaiting_gate1"
+    async with factory() as session:
+        refreshed_sprint = await session.get(Job, uuid.UUID(sprint_id))
+        assert refreshed_sprint is not None
+        assert refreshed_sprint.status == "awaiting_gate1"
 
-    from sqlalchemy import select
-    r = await db_session.execute(
-        select(StrategyBrief).where(StrategyBrief.sprint_job_id == sprint.id)
-    )
-    brief = r.scalar_one()
-    assert brief.status == "draft"
-    assert brief.share_token is not None
+        r = await session.execute(
+            select(StrategyBrief).where(StrategyBrief.sprint_job_id == uuid.UUID(sprint_id))
+        )
+        brief = r.scalar_one()
+        assert brief.status == "draft"
+        assert brief.share_token is not None
 
 
 @pytest.mark.asyncio
 async def test_gate1_approve_saves_status(db_session, sample_workspace):
     """Approve brief sets status=approved and sprint=complete."""
-    import uuid as _uuid
     from httpx import ASGITransport, AsyncClient
-    from app.main import app
 
-    # Setup sprint at awaiting_gate1 + brief
     sprint = Job(
         workspace_id=sample_workspace.id,
         type="sprint",
         status="awaiting_gate1",
-        input={"plan_id": str(_uuid.uuid4())},
+        input={"plan_id": str(uuid.uuid4())},
     )
     db_session.add(sprint)
     await db_session.flush()
 
-    # Need a plan for the brief FK
-    orch = Job(workspace_id=sample_workspace.id, type="orchestrator", status="complete", input={"goal": "test"})
+    orch = Job(
+        workspace_id=sample_workspace.id,
+        type="orchestrator",
+        status="complete",
+        input={"goal": "test"},
+    )
     db_session.add(orch)
     await db_session.flush()
+
     plan = PlanModel(
-        job_id=orch.id, workspace_id=sample_workspace.id,
-        intent="test", domain=sample_workspace.domain,
-        competitors=[], timeline_weeks=12, sprint_order=[], plan_status="approved",
+        job_id=orch.id,
+        workspace_id=sample_workspace.id,
+        intent="test",
+        domain=sample_workspace.domain,
+        competitors=[],
+        timeline_weeks=12,
+        sprint_order=[],
+        plan_status="approved",
     )
     db_session.add(plan)
     await db_session.flush()
@@ -167,14 +192,17 @@ async def test_gate1_approve_saves_status(db_session, sample_workspace):
         sprint_job_id=sprint.id,
         clusters=[],
         executive_summary=[],
-        share_token=str(_uuid.uuid4()),
+        share_token=str(uuid.uuid4()),
         status="draft",
     )
     db_session.add(brief)
-    await db_session.commit()
+    await db_session.flush()
 
-    from app.auth.clerk import ClerkPrincipal, current_user
+    async def override_session():
+        yield db_session
+
     app.dependency_overrides[current_user] = lambda: ClerkPrincipal(user_id=sample_workspace.user_id)
+    app.dependency_overrides[get_session] = override_session
 
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -196,24 +224,38 @@ async def test_gate1_approve_saves_status(db_session, sample_workspace):
 @pytest.mark.asyncio
 async def test_share_endpoint_returns_brief_without_auth(db_session, sample_workspace):
     """GET /share/{token} returns brief without Authorization header."""
-    import uuid as _uuid
     from httpx import ASGITransport, AsyncClient
-    from app.main import app
 
-    orch = Job(workspace_id=sample_workspace.id, type="orchestrator", status="complete", input={"goal": "test"})
+    orch = Job(
+        workspace_id=sample_workspace.id,
+        type="orchestrator",
+        status="complete",
+        input={"goal": "test"},
+    )
     db_session.add(orch)
     await db_session.flush()
+
     plan = PlanModel(
-        job_id=orch.id, workspace_id=sample_workspace.id,
-        intent="test", domain=sample_workspace.domain,
-        competitors=[], timeline_weeks=12, sprint_order=[], plan_status="approved",
+        job_id=orch.id,
+        workspace_id=sample_workspace.id,
+        intent="test",
+        domain=sample_workspace.domain,
+        competitors=[],
+        timeline_weeks=12,
+        sprint_order=[],
+        plan_status="approved",
     )
     db_session.add(plan)
-    sprint = Job(workspace_id=sample_workspace.id, type="sprint", status="complete", input={"plan_id": str(plan.id)})
+    sprint = Job(
+        workspace_id=sample_workspace.id,
+        type="sprint",
+        status="complete",
+        input={"plan_id": str(plan.id)},
+    )
     db_session.add(sprint)
     await db_session.flush()
 
-    token = "pub-test-token-abc123"
+    token = f"pub-test-token-{uuid.uuid4().hex[:8]}"
     brief = StrategyBrief(
         workspace_id=sample_workspace.id,
         plan_id=plan.id,
@@ -224,20 +266,27 @@ async def test_share_endpoint_returns_brief_without_auth(db_session, sample_work
         status="approved",
     )
     db_session.add(brief)
-    await db_session.commit()
+    await db_session.flush()
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        res = await client.get(f"/share/{token}")   # no auth header
+    async def override_session():
+        yield db_session
 
-    assert res.status_code == 200
-    data = res.json()
-    assert data["status"] == "approved"
+    app.dependency_overrides[get_session] = override_session
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.get(f"/share/{token}")
+
+        assert res.status_code == 200
+        data = res.json()
+        assert data["status"] == "approved"
+    finally:
+        app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
-async def test_share_invalid_token_returns_404(db_session):
+async def test_share_invalid_token_returns_404():
     from httpx import ASGITransport, AsyncClient
-    from app.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.get("/share/nonexistent-token-xyz")

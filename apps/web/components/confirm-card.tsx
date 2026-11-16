@@ -1,31 +1,33 @@
 'use client';
 
-interface ConfirmCardProps {
-  domain: string;
-  agentNames: string[];
-  onConfirm: () => Promise<void> | void;
-  busy: boolean;
-}
-
-export function ConfirmCard({ domain, agentNames, onConfirm, busy }: ConfirmCardProps) {
+export function ConfirmCard() {
   return (
-    <div className="max-w-[80%] border rounded-2xl rounded-tl-sm p-4 space-y-3 text-sm bg-muted/40">
-      <p className="font-medium">
-        Starting {agentNames.length} research agents for{' '}
-        <span className="font-semibold">{domain}</span>
-      </p>
-      <ul className="text-xs text-muted-foreground space-y-0.5">
-        {agentNames.map((name) => (
-          <li key={name}>· {name.replace(/_/g, ' ')}</li>
-        ))}
-      </ul>
-      <button
-        className="text-xs border rounded px-3 py-1.5 bg-primary text-primary-foreground disabled:opacity-40"
-        onClick={onConfirm}
-        disabled={busy}
-      >
-        {busy ? 'Starting…' : 'Start Research'}
-      </button>
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+      {/* Green check avatar */}
+      <div style={{
+        width: 24, height: 24, borderRadius: 6, flexShrink: 0, marginTop: 2,
+        background: 'var(--ok-dim)',
+        color: 'var(--ok)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <svg width={12} height={12} viewBox="0 0 16 16" fill="none">
+          <path d="M3 8l4 4 6-7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+
+      {/* Green notification bubble */}
+      <div style={{
+        background: 'var(--ok-dim)',
+        border: '1px solid var(--ok)',
+        borderRadius: '2px 10px 10px 10px',
+        padding: '10px 14px',
+        fontSize: 13,
+        color: 'var(--ok)',
+        display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        Plan approved · dispatching research agents…
+        <span className="mono" style={{ fontSize: 10, opacity: 0.7 }}>Celery chord</span>
+      </div>
     </div>
   );
 }

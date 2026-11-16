@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
+import pytest_asyncio
 from celery.contrib.testing.worker import start_worker
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -40,3 +41,17 @@ def sample_workspace_sync(db_session_sync):
 def celery_worker():
     with start_worker(celery_app, perform_ping_check=False, loglevel="info"):
         yield
+
+
+@pytest_asyncio.fixture(autouse=True, loop_scope="session")
+async def reset_app_engine_pool():
+    """Dispose the app's SQLAlchemy pool before each test.
+
+    asyncio.to_thread tasks create connections in thread-local event loops
+    (via asyncio.run). Those loops close after the task, leaving stale asyncpg
+    connections in the pool. Disposing (without closing) before the next test
+    ensures the session-loop-based tests get fresh connections.
+    """
+    from app.core.db import _engine as app_engine
+    await app_engine.dispose(close=False)
+    yield

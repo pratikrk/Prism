@@ -12,5 +12,19 @@
       "Bash(git *)",
       "Bash(make *)"
     ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/mohit/Ideas/Prism/.claude/scripts/save-journal.sh",
+            "timeout": 15,
+            "statusMessage": "Saving session to journal..."
+          }
+        ]
+      }
+    ]
   }
 }

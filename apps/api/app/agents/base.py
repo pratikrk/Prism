@@ -13,6 +13,7 @@ from tenacity import (
     wait_exponential,
 )
 
+from app.core.claude_limiter import claude_slot
 from app.core.config import settings
 from app.skills.loader import load_skill_prompt
 
@@ -27,11 +28,29 @@ def _is_rate_limit(exc: BaseException) -> bool:
     return isinstance(exc, anthropic.RateLimitError)
 
 
+def _rate_limit_wait(retry_state: object) -> float:
+    """Use the Retry-After header from Anthropic's 429 if present."""
+    exc = getattr(retry_state, "outcome", None)
+    exc = exc.exception() if exc else None
+    if isinstance(exc, anthropic.RateLimitError):
+        headers = getattr(getattr(exc, "response", None), "headers", {}) or {}
+        ra = headers.get("retry-after") or headers.get("Retry-After")
+        if ra:
+            try:
+                return float(ra) + 2  # +2s buffer
+            except (ValueError, TypeError):
+                pass
+    # Fallback: exponential backoff starting at 20s
+    attempt = getattr(retry_state, "attempt_number", 1)
+    return min(20 * (2 ** (attempt - 1)), 90)
+
+
 class BaseAgent(ABC, Generic[TInput, TOutput]):
     CORE_PROMPT: ClassVar[str] = ""
     BACKING_SKILL: ClassVar[str | None] = None
     RESPONSE_MODEL: ClassVar[type[pydantic.BaseModel]]
     MODEL: ClassVar[str] = _DEFAULT_MODEL
+    MAX_TOKENS: ClassVar[int] = 2048
 
     def __init__(self) -> None:
         self._client = anthropic.AsyncAnthropic(
@@ -70,19 +89,20 @@ class BaseAgent(ABC, Generic[TInput, TOutput]):
 
         @retry(
             retry=retry_if_exception_type(anthropic.RateLimitError),
-            wait=wait_exponential(multiplier=1, min=15, max=60),
-            stop=stop_after_attempt(4),
+            wait=_rate_limit_wait,
+            stop=stop_after_attempt(6),
             reraise=True,
         )
         async def _create():
             return await self._client.messages.create(
                 model=self.MODEL,
-                max_tokens=2048,
+                max_tokens=self.MAX_TOKENS,
                 system=system,
                 messages=[{"role": "user", "content": u}],
             )
 
-        resp = await _create()
+        async with claude_slot(settings.redis_url, max_concurrent=2):
+            resp = await _create()
         raw = "".join(block.text for block in resp.content if getattr(block, "text", None))
         # Strip markdown code fences Claude sometimes adds despite instructions
         text = raw.strip()

@@ -65,7 +65,13 @@ export default function WorkspaceDetailPage() {
     const tok = await getToken();
     if (!tok) return;
     setPendingGoal(message);
-    await sendChatMessage(tok, id, message);
+    const resp = await sendChatMessage(tok, id, message);
+    // Only keep pendingGoal (which shows the thinking bubble) for goal_setting —
+    // that's the only intent that creates a job and produces a 'goal' thread item.
+    // For audit / question / unknown, clear immediately so the UI doesn't hang.
+    if (resp.intent !== 'goal_setting') {
+      setPendingGoal(null);
+    }
     mutate();
   }
 

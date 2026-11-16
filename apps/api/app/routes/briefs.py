@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 import pydantic
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.clerk import ClerkPrincipal, current_user
@@ -14,6 +15,25 @@ from app.models import Job, StrategyBrief, Workspace
 from app.workers.tasks import synthesis_task
 
 router = APIRouter(prefix="/briefs", tags=["briefs"])
+
+
+class FullBriefOut(pydantic.BaseModel):
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    plan_id: uuid.UUID
+    sprint_job_id: uuid.UUID
+    clusters: list
+    executive_summary: list
+    share_token: str | None
+    status: str
+    approved_at: datetime | None
+    created_at: datetime
+    keyword_result: dict | None = None
+    competitor_result: dict | None = None
+    content_audit_result: dict | None = None
+    llm_visibility_result: dict | None = None
+
+    model_config = pydantic.ConfigDict(from_attributes=True)
 
 
 class BriefApproveOut(pydantic.BaseModel):
@@ -39,6 +59,35 @@ async def _load_brief(
     if ws is None or ws.user_id != principal.user_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "brief not found")
     return brief
+
+
+@router.get("/{brief_id}", response_model=FullBriefOut)
+async def get_brief(
+    brief_id: uuid.UUID,
+    principal: ClerkPrincipal = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    brief = await _load_brief(session, principal, brief_id)
+    result = await session.execute(
+        select(Job).where(Job.parent_job_id == brief.sprint_job_id, Job.status == "complete")
+    )
+    child_results: dict[str, dict | None] = {child.type: child.result for child in result.scalars()}
+    return {
+        "id": brief.id,
+        "workspace_id": brief.workspace_id,
+        "plan_id": brief.plan_id,
+        "sprint_job_id": brief.sprint_job_id,
+        "clusters": brief.clusters,
+        "executive_summary": brief.executive_summary,
+        "share_token": brief.share_token,
+        "status": brief.status,
+        "approved_at": brief.approved_at,
+        "created_at": brief.created_at,
+        "keyword_result": child_results.get("keyword"),
+        "competitor_result": child_results.get("competitor"),
+        "content_audit_result": child_results.get("content_audit"),
+        "llm_visibility_result": child_results.get("llm_visibility"),
+    }
 
 
 @router.post("/{brief_id}/approve", response_model=BriefApproveOut)

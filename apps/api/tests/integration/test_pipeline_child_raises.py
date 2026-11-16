@@ -8,9 +8,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 import sentry_sdk
 
+from app.agents.content_audit import ContentAuditResult
+from app.agents.llm_visibility import LLMVisibilityResult
 from app.models import Job
 from app.workers.tasks import orchestrator_task
 from tests.integration.test_pipeline_happy import (
+    _approve_plan_and_dispatch,
     _fake_plan,
     _find_sprint,
     _insert_orchestrator_job,
@@ -40,11 +43,23 @@ def test_child_raises_raw_exception_chord_still_completes(
 
     monkeypatch.setattr(tmod, "_child_body", leaky_child_body)
 
+    fake_audit = ContentAuditResult(pages_found=0, ranking_pages=[], missing_topics=[], summary="")
+    fake_llm = LLMVisibilityResult(
+        queries_tested=[], brand_mentioned=False, mention_count=0,
+        competitor_mentions={}, sample_response="", note=""
+    )
+
     with patch("app.agents.orchestrator.OrchestratorAgent._call_claude",
                AsyncMock(return_value=_fake_plan())), \
          patch("app.agents.keyword.KeywordAgent.run",
-               AsyncMock(return_value=_fake_kw())):
-        orchestrator_task.delay(job_id).get(timeout=30)
+               AsyncMock(return_value=_fake_kw())), \
+         patch("app.workers.tasks.ContentAuditAgent") as MockAudit, \
+         patch("app.workers.tasks.LLMVisibilityAgent") as MockLLM:
+        MockAudit.return_value.run = AsyncMock(return_value=fake_audit)
+        MockLLM.return_value.run = AsyncMock(return_value=fake_llm)
+        result = orchestrator_task.delay(job_id).get(timeout=30)
+        plan_id = result["plan_id"]
+        _approve_plan_and_dispatch(db_session_sync, job_id, plan_id, sample_workspace_sync.id)
         _wait_for_sprint_terminal(db_session_sync, job_id, timeout=30)
 
     sprint = _find_sprint(db_session_sync, job_id)

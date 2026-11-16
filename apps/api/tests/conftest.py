@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import asyncio
 import os
 import uuid
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
@@ -26,14 +25,7 @@ from app.core.config import settings  # noqa: E402
 from app.models import Base, Job, User, Workspace  # noqa: E402
 
 
-@pytest.fixture(scope="session")
-def event_loop() -> Iterator[asyncio.AbstractEventLoop]:
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def _engine():
     engine = create_async_engine(settings.database_url, poolclass=None)
     async with engine.begin() as conn:
@@ -43,7 +35,7 @@ async def _engine():
     await engine.dispose()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def db_session(_engine) -> AsyncIterator[AsyncSession]:
     conn = await _engine.connect()
     trans = await conn.begin()
@@ -57,7 +49,7 @@ async def db_session(_engine) -> AsyncIterator[AsyncSession]:
         await conn.close()
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def sample_user(db_session: AsyncSession) -> User:
     u = User(id=f"user_{uuid.uuid4().hex[:8]}", email=f"{uuid.uuid4().hex[:8]}@x.test", name="T")
     db_session.add(u)
@@ -65,7 +57,7 @@ async def sample_user(db_session: AsyncSession) -> User:
     return u
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(loop_scope="session")
 async def sample_workspace(db_session: AsyncSession, sample_user: User) -> Workspace:
     w = Workspace(user_id=sample_user.id, name="w", domain="example.test")
     db_session.add(w)

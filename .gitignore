@@ -2,6 +2,9 @@
 .DS_Store
 Thumbs.db
 
+# Visual companion
+.superpowers/
+
 # Editor
 .vscode/
 .idea/
@@ -45,12 +48,7 @@ htmlcov/
 # Reference material — not checked in
 prism-product-blueprint.docx
 test.html
-
-# claude-seo sibling folder before Foundation implementation moves it to vendor/.
-# Once vendor/claude-seo/ exists it is tracked (distinct path, not matched by this).
-/claude-seo/
+WC.pdf
 
 # Claude Code local overrides
 .claude/settings.local.json
-
-WC.pdf

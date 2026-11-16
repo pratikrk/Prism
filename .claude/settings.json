@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm *)",
+      "Bash(pnpm install*)",
+      "Bash(pnpm --filter * *)",
+      "Bash(uv *)",
+      "Bash(uv run *)",
+      "Bash(pytest*)",
+      "Bash(docker compose*)",
+      "Bash(alembic *)",
+      "Bash(git *)",
+      "Bash(make *)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/mohit/Ideas/Prism/.claude/scripts/save-journal.sh",
+            "timeout": 15,
+            "statusMessage": "Saving session to journal..."
+          }
+        ]
+      }
+    ]
+  }
+}

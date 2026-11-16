@@ -1,0 +1,26 @@
+{
+  "version": "0.1",
+  "status_code": 20000,
+  "tasks": [
+    {
+      "id": "task-1",
+      "status_code": 20000,
+      "result": [
+        {
+          "keyword": "applicant tracking system",
+          "search_volume": 4400,
+          "keyword_difficulty": 45,
+          "competition": "HIGH",
+          "competition_index": 60
+        },
+        {
+          "keyword": "ats software",
+          "search_volume": 2900,
+          "keyword_difficulty": 52,
+          "competition": "MEDIUM",
+          "competition_index": 50
+        }
+      ]
+    }
+  ]
+}

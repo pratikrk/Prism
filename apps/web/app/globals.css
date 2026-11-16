@@ -1,0 +1,147 @@
+/* ─── Google Fonts ─────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Prism light tokens */
+    --bg:             #fafaf8;
+    --bg-elev:        #ffffff;
+    --bg-card:        #ffffff;
+    --bg-hover:       #f4f4f1;
+    --border:         #e8e8e4;
+    --border-strong:  #d6d6d1;
+    --text:           #111114;
+    --text-mut:       #6b6b73;
+    --text-dim:       #9a9aa2;
+    --accent:         #6544ff;
+    --accent-dim:     rgba(101,68,255,0.10);
+    --ok:             #14a564;
+    --ok-dim:         rgba(20,165,100,0.10);
+    --warn:           #c77700;
+    --warn-dim:       rgba(199,119,0,0.10);
+    --err:            #d9342b;
+    --err-dim:        rgba(217,52,43,0.10);
+    --running:        #3d6bd9;
+    --running-dim:    rgba(61,107,217,0.10);
+    --awaiting:       #7c5cff;
+    --awaiting-dim:   rgba(124,92,255,0.10);
+
+    /* shadcn compat */
+    --background:           0 0% 98%;
+    --foreground:           240 5% 7%;
+    --muted:                60 5% 95%;
+    --muted-foreground:     240 3% 43%;
+    --border:               60 5% 91%;
+    --input:                60 5% 91%;
+    --ring:                 251 100% 63%;
+    --primary:              251 100% 63%;
+    --primary-foreground:   0 0% 100%;
+    --destructive:          3 71% 46%;
+    --destructive-foreground: 0 0% 100%;
+    --radius:               0.5rem;
+  }
+
+  .dark {
+    /* Prism dark tokens */
+    --bg:             #0a0a0b;
+    --bg-elev:        #0f0f11;
+    --bg-card:        #111114;
+    --bg-hover:       #17171b;
+    --border:         #1f1f24;
+    --border-strong:  #2a2a31;
+    --text:           #ededf0;
+    --text-mut:       #8a8a93;
+    --text-dim:       #55555d;
+    --accent:         #7c5cff;
+    --accent-dim:     rgba(124,92,255,0.14);
+    --ok:             #3ecf8e;
+    --ok-dim:         rgba(62,207,142,0.12);
+    --warn:           #f5a524;
+    --warn-dim:       rgba(245,165,36,0.12);
+    --err:            #ff5b5b;
+    --err-dim:        rgba(255,91,91,0.12);
+    --running:        #5b8dff;
+    --running-dim:    rgba(91,141,255,0.14);
+    --awaiting:       #a78bfa;
+    --awaiting-dim:   rgba(167,139,250,0.14);
+
+    /* shadcn compat */
+    --background:           240 5% 4%;
+    --foreground:           240 5% 93%;
+    --muted:                240 4% 10%;
+    --muted-foreground:     240 3% 55%;
+    --border:               240 4% 13%;
+    --input:                240 4% 13%;
+    --ring:                 255 100% 68%;
+    --primary:              255 100% 68%;
+    --primary-foreground:   0 0% 100%;
+    --destructive:          0 100% 67%;
+    --destructive-foreground: 0 0% 100%;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: 'cv11','ss01','ss03';
+    font-size: 13px;
+    line-height: 1.5;
+    letter-spacing: -0.011em;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* ─── Utilities ─────────────────────────────────────────────────────────────── */
+.mono {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-feature-settings: 'ss01','ss02','cv01';
+  letter-spacing: 0;
+}
+
+/* Dot-grid background for main content areas */
+.prism-grid {
+  background-image: radial-gradient(circle, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+}
+.light .prism-grid,
+:root:not(.dark) .prism-grid {
+  background-image: radial-gradient(circle, rgba(0,0,0,0.04) 1px, transparent 1px);
+}
+
+/* Running pulse dot */
+@keyframes prism-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.prism-pulse {
+  animation: prism-pulse 1.4s ease-in-out infinite;
+}
+
+/* Running progress shimmer */
+@keyframes prism-stream {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+.prism-stream {
+  animation: prism-stream 1.8s ease-in-out infinite;
+}
+
+/* Caret */
+.prism-caret::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  background: var(--accent);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: prism-pulse 1s ease-in-out infinite;
+}
